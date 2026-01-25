@@ -7,6 +7,7 @@ Soporta clientes Web, Mobile y Desktop.
 - Laravel 11
 - MySQL
 - kitloong/laravel-migrations-generator
+- Sanctum
 - REST API
 
 ## Instalación
