@@ -9,6 +9,8 @@ Soporta clientes Web, Mobile y Desktop.
 - kitloong/laravel-migrations-generator
 - Sanctum
 - REST API
+- Socialite
+
 
 ## Instalación
 ...

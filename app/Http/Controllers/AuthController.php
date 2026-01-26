@@ -72,6 +72,18 @@ class AuthController extends Controller
 
     }
 
+
+    public function loginWithGoogle (Request $request) {
+
+    }
+
+
+
+
+
+
+
+
     //SE PUEDE MOFIDICAR PARA MULTIPLES DISPOSITIVOS
 
 
