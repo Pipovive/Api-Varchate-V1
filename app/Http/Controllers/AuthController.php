@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use Illuminate\Http\Request;
 use App\Models\Usuario;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Str;
 
 use function Symfony\Component\String\u;
 
@@ -48,7 +51,7 @@ class AuthController extends Controller
         $usuario = Usuario::where('email', $request->email)->first();
 
         if (!$usuario ||  !Hash::check($request->password, $usuario->password)) {
-             throw ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'email' => ['Las credenciales proporcionadas son incorrectas.'],
             ]);
         }
@@ -69,12 +72,46 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'Bearer',
         ]);
-
     }
 
 
-    public function loginWithGoogle (Request $request) {
+    public function loginWithGoogle(Request $request)
+    {
+        $request->validate(
+            [
+                'token' => 'string|required'
+            ]
+        );
 
+        try {
+            $googleUser= Socialite::driver('google')->userFromToken($request->token);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Token de Google inválido',401
+            ]);
+        }
+
+        $usuario = Usuario::where('email', $googleUser->getEmail())->first();
+
+        if(!$usuario){
+            $usuario = Usuario::create([
+                'nombre' => $googleUser->getName(),
+                'email' => $googleUser->getEmail(),
+                'email_verificado' => true,
+                'proovider_auth' => 'google',
+                'auth_provider_id' => $googleUser->getId(),
+                'password' => null,
+            ]);
+        }
+
+        $token = $usuario->createToken('google-auth')->plainTextToken();
+
+        return response()->json([
+            'message' => 'Login con google exitoso',
+            'user' => $usuario,
+            'token' => $token,
+            'token_type' => 'Bearer'
+        ]);
     }
 
 
@@ -87,12 +124,13 @@ class AuthController extends Controller
     //SE PUEDE MOFIDICAR PARA MULTIPLES DISPOSITIVOS
 
 
-    public function logout(Request $request) {
+    public function logout(Request $request)
+    {
         $request->user()->currentAccessToken()->delete();
 
-     return response()->json([
-        'message' => 'Sesión cerrada exitosamente'
-    ], 200);
+        return response()->json([
+            'message' => 'Sesión cerrada exitosamente'
+        ], 200);
     }
 
     public function test()
