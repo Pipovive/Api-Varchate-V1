@@ -17,7 +17,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'nombre' => 'required|string|ma:255',
+            'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:usuarios',
             'password' => 'required|string|min:8|confirmed'
         ]);
@@ -77,39 +77,38 @@ class AuthController extends Controller
 
     public function loginWithGoogle(Request $request)
     {
-        $request->validate(
-            [
-                'token' => 'string|required'
-            ]
-        );
+        $request->validate([
+            'token' => 'required|string'
+        ]);
 
         try {
-            $googleUser= Socialite::driver('google')->userFromToken($request->token);
+            $googleUser = Socialite::driver('google')
+                ->userFromToken($request->token);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Token de Google inválido',401
-            ]);
+                'message' => 'Token de Google inválido'
+            ], 401);
         }
 
         $usuario = Usuario::where('email', $googleUser->getEmail())->first();
 
-        if(!$usuario){
+        if (!$usuario) {
             $usuario = Usuario::create([
                 'nombre' => $googleUser->getName(),
                 'email' => $googleUser->getEmail(),
-                'email_verificado' => true,
-                'proovider_auth' => 'google',
+                'email_verificado' => 1,
+                'proveedor_auth' => 'google',
                 'auth_provider_id' => $googleUser->getId(),
                 'password' => null,
             ]);
         }
 
-        $token = $usuario->createToken('google-auth')->plainTextToken();
+        $token = $usuario->createToken('google-auth')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login con google exitoso',
+            'message' => 'Login con Google exitoso',
             'user' => $usuario,
-            'token' => $token,
+            'access_token' => $token,
             'token_type' => 'Bearer'
         ]);
     }
