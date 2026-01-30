@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ModuloController;
 use GuzzleHttp\Middleware;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -11,6 +12,16 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 
 
 
+//SISTEMA DE MODULOS
+
+Route::get('/modulos', [ModuloController::class, 'index']);
+
+//SISTEMA MODULO ADMIN
+
+Route::post('/modulos/store', [ModuloController::class, 'store']);
+
+
+//SITSTEMA DE AUTENTIFICACION
 
 Route::get('/test', [AuthController::class, 'test']);
 Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
