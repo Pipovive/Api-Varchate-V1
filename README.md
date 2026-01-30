@@ -10,7 +10,7 @@ Soporta clientes Web, Mobile y Desktop.
 - Sanctum
 - REST API
 - Socialite
-
+- smtp  
 
 ## Instalación
 ...

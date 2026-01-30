@@ -15,7 +15,7 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->string('nombre');
             $table->string('email')->unique('email');
-            $table->boolean('email_verificado')->nullable()->default(false);
+            $table->timestamp('email_verified_at')->nullable();
             $table->string('password')->nullable();
             $table->string('avatar', 50)->nullable()->default('default');
             $table->enum('rol', ['administrador', 'aprendiz'])->nullable()->default('aprendiz');

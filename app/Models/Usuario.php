@@ -5,8 +5,10 @@ namespace App\Models; // Asegúrate de tener el namespace correcto
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 
-class Usuario extends Authenticatable // Cambiar de Model a Authenticatable
+
+class Usuario extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, Notifiable;
 

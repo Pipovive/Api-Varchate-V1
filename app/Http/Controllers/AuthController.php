@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 
+
 use function Symfony\Component\String\u;
 
 class AuthController extends Controller
@@ -28,16 +29,12 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        $usuario->sendEmailVerificationNotification();
         //Creacion de token de sacnctum
 
-        $token = $usuario->createToken('web_app')->plainTextToken;
-
         return response()->json([
-            'message' => 'Usuario registrado correctamente',
-            'user' => $usuario,
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-        ]);
+            'message' => 'Se envió un correo a tu emai para comprobar que eres tú',
+        ], 201);
     }
 
     public function login(Request $request)
@@ -62,6 +59,15 @@ class AuthController extends Controller
                 'message' => 'Usuario inactivo'
             ]);
         }
+
+        // validad que el usuario este autentifado para que pueda entrar
+
+        if (!$usuario->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Debes verificar tu correo electrónico antes de iniciar sesión'
+            ], 403);
+        }
+
         //crear token de entrar a la api
 
         $token = $usuario->createToken('auth_token')->plainTextToken;
@@ -74,6 +80,14 @@ class AuthController extends Controller
         ]);
     }
 
+    public function reSendEmail(Request $request)
+    {
+        $request->user()->sendEmailVerificationNotification();
+
+        return response()->json([
+            'message' => 'Correo de verificación reenviado'
+        ]);
+    }
 
     public function loginWithGoogle(Request $request)
     {
@@ -96,7 +110,7 @@ class AuthController extends Controller
             $usuario = Usuario::create([
                 'nombre' => $googleUser->getName(),
                 'email' => $googleUser->getEmail(),
-                'email_verificado' => 1,
+                'email_verified_at' => now(),
                 'proveedor_auth' => 'google',
                 'auth_provider_id' => $googleUser->getId(),
                 'password' => null,
