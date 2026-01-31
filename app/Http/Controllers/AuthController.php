@@ -33,7 +33,7 @@ class AuthController extends Controller
         //Creacion de token de sacnctum
 
         return response()->json([
-            'message' => 'Se envió un correo a tu emai para comprobar que eres tú',
+            'message' => 'Se envió un correo a tu email para comprobar que eres tú',
         ], 201);
     }
 

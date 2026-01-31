@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Leccion;
 
 class Modulo extends Model
 {
@@ -17,4 +18,8 @@ class Modulo extends Model
         'estado',
         'created_by',
     ];
+
+    public function lecciones() {
+        return $this->hasMany(Leccion::class);
+    }
 }

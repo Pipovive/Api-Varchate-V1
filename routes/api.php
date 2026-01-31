@@ -14,11 +14,11 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 
 //SISTEMA DE MODULOS
 
-Route::get('/modulos', [ModuloController::class, 'index']);
+
 
 //SISTEMA MODULO ADMIN
 
-Route::post('/modulos/store', [ModuloController::class, 'store']);
+
 
 
 //SITSTEMA DE AUTENTIFICACION
@@ -45,10 +45,23 @@ Route::middleware('auth:sanctum')->post('/email/resend', [AuthController::class,
 
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])->name("verification.verify");
 
+
+//SISTEMA DE USER
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('/logout');
     Route::post(
         '/email/verification-notification',
         [EmailVerificationController::class, 'resend']
     );
+    Route::get('/modulos', [ModuloController::class, 'index']);
+    Route::get('/modulos/{slug}', [ModuloController::class, 'show']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    //SISTEMA DE ADMINISTRADOR
+    Route::post('/modulos/store', [ModuloController::class, 'store']);
+    Route::put('/admin/modulos/{id}', [ModuloController::class, 'update']);
+    Route::delete('/admin/modulo/{id}', [ModuloController::class, 'destroy']);
 });
