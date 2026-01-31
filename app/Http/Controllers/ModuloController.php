@@ -23,7 +23,6 @@ class ModuloController extends Controller
 
     public function store(Request $request)
     {
-
         $request->validate([
             'titulo' => 'required|string|max:255',
             'slug' => 'required|string|unique:modulos',

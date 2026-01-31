@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Password as PasswordBroker;
+use Illuminate\Validation\Rules\Password;
+
+
 
 
 use function Symfony\Component\String\u;
@@ -20,7 +24,13 @@ class AuthController extends Controller
         $request->validate([
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:usuarios',
-            'password' => 'required|string|min:8|confirmed'
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->mixedCase()   // mayúscula + minúscula
+                    ->numbers()     // al menos un número
+            ],
         ]);
 
         $usuario = Usuario::create([
@@ -37,39 +47,93 @@ class AuthController extends Controller
         ], 201);
     }
 
+
+    public function recoverPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $status = PasswordBroker::sendResetLink(
+            ['email' => $request->email]
+        );
+
+        if ($status !== PasswordBroker::RESET_LINK_SENT) {
+            return response()->json([
+                'message' => 'No se pudo enviar el correo'
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Correo de recuperación enviado'
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+
+        $request->validate([
+            'email' => 'email|required',
+            'token' => 'required|string',
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->mixedCase()   // mayúscula + minúscula
+                    ->numbers()     // al menos un número
+            ],
+        ]);
+
+        $status = PasswordBroker::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->password = Hash::make($password);
+                $user->save();
+            }
+        );
+        if ($status === PasswordBroker::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'Contraseña actualizada correctamente'
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Token inválido o expirado'
+        ], 400);
+    }
+
     public function login(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
-            'password' => 'string|required'
+            'password' => 'required|string'
         ]);
-        //validar que el usuario existe
 
+        // 1. Buscar usuario
         $usuario = Usuario::where('email', $request->email)->first();
 
-        if (!$usuario ||  !Hash::check($request->password, $usuario->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Las credenciales proporcionadas son incorrectas.'],
-            ]);
+        // 2. Validar existencia y contraseña
+        if (!$usuario || !Hash::check($request->password, $usuario->password)) {
+            return response()->json([
+                'message' => 'Credenciales incorrectas'
+            ], 401);
         }
-        //Validar que el usuario este activo
 
+        // 3. Validar estado
         if ($usuario->estado !== 'activo') {
             return response()->json([
                 'message' => 'Usuario inactivo'
-            ]);
+            ], 403);
         }
 
-        // validad que el usuario este autentifado para que pueda entrar
-
+        // 4. Validar email verificado
         if (!$usuario->hasVerifiedEmail()) {
             return response()->json([
                 'message' => 'Debes verificar tu correo electrónico antes de iniciar sesión'
             ], 403);
         }
 
-        //crear token de entrar a la api
-
+        // 5. Crear token
         $token = $usuario->createToken('auth_token')->plainTextToken;
 
         return response()->json([

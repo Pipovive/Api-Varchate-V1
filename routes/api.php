@@ -1,67 +1,112 @@
 <?php
 
-use App\Http\Controllers\EmailVerificationController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ModuloController;
-use GuzzleHttp\Middleware;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
-use App\Models\Usuario;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\ModuloController;
 
-
-//SISTEMA DE MODULOS
-
-
-
-//SISTEMA MODULO ADMIN
-
-
-
-
-//SITSTEMA DE AUTENTIFICACION
+/*
+|--------------------------------------------------------------------------
+| RUTAS DE PRUEBA / DEBUG
+|--------------------------------------------------------------------------
+*/
 
 Route::get('/test', [AuthController::class, 'test']);
-Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
-    return $request->user();
-});
 
 
-Route::post('/register', [AuthController::class, 'register'])->name('/register');
-Route::post('/login', [AuthController::class, 'login'])->name('/login');
+/*
+|--------------------------------------------------------------------------
+| AUTENTICACIÓN (PUBLICAS)
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+// Login con Google (token enviado desde frontend)
 Route::post('/auth/google', [AuthController::class, 'loginWithGoogle']);
 
-Route::get('/test-email', function () {
-    Mail::raw('Correo de prueba SMTP', function ($message) {
-        $message->to('varchate25@gmail.com')
-            ->subject('varchate sujeto');
-    });
+/*
+|--------------------------------------------------------------------------
+| VERIFICACIÓN DE EMAIL
+|--------------------------------------------------------------------------
+*/
+
+// Link que llega por correo
+Route::get(
+    '/email/verify/{id}/{hash}',
+    [EmailVerificationController::class, 'verify']
+)->name('verification.verify');
+
+// Reenviar email de verificación (usuario logueado)
+Route::middleware('auth:sanctum')->post(
+    '/email/resend',
+    [EmailVerificationController::class, 'resend']
+);
+
+/*
+|--------------------------------------------------------------------------
+| RECUPERACION DE CONTRASEÑA
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/password/forgot', [AuthController::class, 'recoverPassword']);
+Route::get('/reset-password/{token}', function ($token) {
+    return response()->json([
+        'token' => $token
+    ]);
 });
-
-Route::middleware('auth:sanctum')->post('/email/resend', [AuthController::class, 'resendVerification']);
-
-
-Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])->name("verification.verify");
-
-
-//SISTEMA DE USER
+Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+Route::get('/password/reset', function () {
+    return response()->json([
+        'message' => 'Token válido, envía email, token y nueva contraseña por POST'
+    ]);
+});
+/*
+|--------------------------------------------------------------------------
+| USUARIO AUTENTICADO
+|--------------------------------------------------------------------------
+*/
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('/logout');
-    Route::post(
-        '/email/verification-notification',
-        [EmailVerificationController::class, 'resend']
-    );
+
+    // Obtener usuario autenticado
+    Route::get('/me', function (Request $request) {
+        return $request->user();
+    });
+
+    // Logout (revoca token actual)
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | MODULOS (USUARIO)
+    |--------------------------------------------------------------------------
+    */
+
+    // Ver módulos disponibles
     Route::get('/modulos', [ModuloController::class, 'index']);
+
+    // Ver detalle de un módulo
     Route::get('/modulos/{slug}', [ModuloController::class, 'show']);
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+/*
+|--------------------------------------------------------------------------
+| ADMINISTRADOR (auth + rol)
+|--------------------------------------------------------------------------
+*/
 
-    //SISTEMA DE ADMINISTRADOR
-    Route::post('/modulos/store', [ModuloController::class, 'store']);
+Route::middleware(['auth:sanctum', 'is_admin'])->group(function () {
+
+    // Crear módulo
+    Route::post('/admin/modulos', [ModuloController::class, 'store']);
+
+    // Editar módulo
     Route::put('/admin/modulos/{id}', [ModuloController::class, 'update']);
-    Route::delete('/admin/modulo/{id}', [ModuloController::class, 'destroy']);
+
+    // Eliminar módulo
+    Route::delete('/admin/modulos/{id}', [ModuloController::class, 'destroy']);
 });

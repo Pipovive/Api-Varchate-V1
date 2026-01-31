@@ -29,8 +29,15 @@ return new class extends Migration
             $table->tinyInteger('intentos_fallidos')->nullable()->default(0);
             $table->dateTime('bloqueado_hasta')->nullable();
             $table->dateTime('ultimo_acceso')->nullable();
+            $table->boolean('terms_accepted')->default(false);
+            $table->timestamp('terms_accepted_at')->nullable();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrentOnUpdate()->useCurrent();
+            // ✅ RELACIÓN CON AVATAR
+            $table->foreignId('avatar_id')
+                ->nullable()
+                ->constrained('avatars')
+                ->nullOnDelete();
 
             $table->index(['email'], 'idx_email');
         });
