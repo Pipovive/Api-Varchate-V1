@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ModuloController;
 
@@ -52,7 +53,7 @@ Route::middleware('auth:sanctum')->post(
 |--------------------------------------------------------------------------
 */
 
-Route::post('/password/forgot', [AuthController::class, 'recoverPassword']);
+Route::post('/password/forgot', [AuthController::class, 'recoverPassword'])->middleware('throttle:email-resend');;
 Route::get('/reset-password/{token}', function ($token) {
     return response()->json([
         'token' => $token
@@ -73,9 +74,16 @@ Route::get('/password/reset', function () {
 Route::middleware('auth:sanctum')->group(function () {
 
     // Obtener usuario autenticado
-    Route::get('/me', function (Request $request) {
-        return $request->user();
+    Route::middleware('auth:sanctum')->group(function () {
+
+        // Perfil
+        Route::get('/me', [UserController::class, 'me']);
+        Route::put('/me', [UserController::class, 'updateProfile']);
+
+        // Contraseña
+        Route::put('/me/password', [UserController::class, 'updatePassword']);
     });
+
 
     // Logout (revoca token actual)
     Route::post('/logout', [AuthController::class, 'logout']);

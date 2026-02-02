@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('email')->unique('email');
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password')->nullable();
-            $table->string('avatar', 50)->nullable()->default('default');
             $table->enum('rol', ['administrador', 'aprendiz'])->nullable()->default('aprendiz');
             $table->enum('estado', ['activo', 'inactivo'])->nullable()->default('activo');
             $table->enum('tema_preferido', ['claro', 'oscuro'])->nullable()->default('claro');
@@ -33,7 +32,7 @@ return new class extends Migration
             $table->timestamp('terms_accepted_at')->nullable();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrentOnUpdate()->useCurrent();
-            // ✅ RELACIÓN CON AVATAR
+
             $table->foreignId('avatar_id')
                 ->nullable()
                 ->constrained('avatars')

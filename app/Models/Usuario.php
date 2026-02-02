@@ -6,7 +6,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-
+use App\Models\Avatar;
 
 class Usuario extends Authenticatable implements MustVerifyEmail
 {
@@ -18,9 +18,11 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'nombre',
         'email',
         'password',
-        'avatar',
+        'avatar_id',
         'proveedor_auth',
         'auth_provider_id',
+        'terms_accepted',
+        'terms_accepted_at'
     ];
 
     protected $hidden = [
@@ -33,4 +35,12 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'password' => 'hashed', // Laravel 10+ (automáticamente hashea)
     ];
+    protected function avatar()
+    {
+        return $this->belongTo(Avatar::class);
+    }
+    public function attempts()
+    {
+        return $this->hasMany(UserAttempt::class);
+    }
 }
