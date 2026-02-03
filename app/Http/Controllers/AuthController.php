@@ -22,6 +22,7 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        dd($request->all);
         $request->validate([
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:usuarios',
@@ -32,7 +33,7 @@ class AuthController extends Controller
                     ->mixedCase()
                     ->numbers()
             ],
-            'terms_accepted' => 'required|boolean|in:1'
+            'terms_accepted' => 'required|boolean'
         ]);
 
         $usuario = Usuario::create([
@@ -45,8 +46,12 @@ class AuthController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+
+
         $usuario->sendEmailVerificationNotification();
         //Creacion de token de sacnctum
+
+
 
         return response()->json([
             'message' => 'Se envió un correo a tu email para comprobar que eres tú',
