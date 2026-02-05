@@ -42,6 +42,14 @@ class AuthController extends Controller
             'terms_accepted' => true,
             'terms_accepted_at' => now(),
             'avatar_id' => 1,
+        ]);
+
+        UserAttempt::create([
+            'user_id' => $usuario->id,
+            'email' => $usuario->email,
+            'action' => 'register',
+            'success' => true,
+            'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
