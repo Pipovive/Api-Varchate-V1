@@ -45,13 +45,13 @@ class AuthController extends Controller
         ]);
 
         UserAttempt::create([
-    'user_id' => $usuario->id,
-    'email' => $usuario->email,
-    'action' => 'register',
-    'success' => true,
-    'ip' => $request->ip(),
-    'user_agent' => $request->userAgent(),
-]);
+            'user_id' => $usuario->id,
+            'email' => $usuario->email,
+            'action' => 'register',
+            'success' => true,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
 
 
@@ -105,7 +105,7 @@ class AuthController extends Controller
         $status = PasswordBroker::reset(
 
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
+            function ($user, $password) use ($request) {
                 $user->password = Hash::make($password);
 
                 $user->save();
@@ -115,8 +115,8 @@ class AuthController extends Controller
                     'action' => 'password_reset',
                     'status' => 'success',
                     'success' => true,
-                    'ip_address' => $user->ip(),
-                    'user_agent' => $user->userAgent(),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
                 ]);
             }
         );
