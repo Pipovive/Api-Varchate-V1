@@ -11,6 +11,7 @@ use App\Http\Controllers\ProgressController;
 use App\Http\Controllers\EjercicioController;
 use App\Http\Controllers\EvaluacionController;
 use App\Http\Controllers\RankingController;
+use App\Http\Controllers\CertificacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,8 +83,8 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/modulos', [ModuloController::class, 'index']);
-    Route::get('/modulos/{slug}', [ModuloController::class, 'show']);
-    Route::get('/modulos/id/{moduloId}', [ModuloController::class, 'showById']);
+    Route::get('/modulos/{slug}', [ModuloController::class, 'show']); // Por slug
+    Route::get('/modulos/id/{moduloId}', [ModuloController::class, 'showById']); // Por ID
 
     /*
     |--------------------------------------------------------------------------
@@ -125,26 +126,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | PROGRESO (DETALLE Y COMPLETADO)
-    |--------------------------------------------------------------------------
-    */
-    Route::get(
-        '/progreso/modulos',
-        [ProgressController::class, 'getProgresoModulos']
-    );
-
-    Route::get(
-        '/progreso/modulo/{moduloId}/detalle',
-        [ProgressController::class, 'getProgresoDetalle']
-    );
-
-    Route::post(
-        '/progreso/leccion/{leccionId}/completar',
-        [ProgressController::class, 'completarLeccion']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
     | EJERCICIOS INTERACTIVOS
     |--------------------------------------------------------------------------
     */
@@ -164,13 +145,9 @@ Route::middleware('auth:sanctum')->group(function () {
     );
 });
 
-/*
-|--------------------------------------------------------------------------
-| EVALUACIONES
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth:sanctum')->group(function () {
-
+// Evaluaciones
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Información y estado de evaluación
     Route::get(
         '/modulos/{moduloId}/evaluacion',
         [EvaluacionController::class, 'getEvaluacion']
@@ -179,8 +156,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get(
         '/modulos/{moduloId}/evaluacion/estado',
         [EvaluacionController::class, 'getEvaluacion']
-    );
+    ); // Alias
 
+    // Gestión de intentos
     Route::post(
         '/modulos/{moduloId}/evaluacion/iniciar',
         [EvaluacionController::class, 'iniciarEvaluacion']
@@ -201,6 +179,7 @@ Route::middleware('auth:sanctum')->group(function () {
         [EvaluacionController::class, 'finalizarEvaluacion']
     );
 
+    // Resultados e historial
     Route::get(
         '/modulos/{moduloId}/evaluacion/{intentoId}/resultado',
         [EvaluacionController::class, 'getResultadosIntento']
@@ -211,35 +190,37 @@ Route::middleware('auth:sanctum')->group(function () {
         [EvaluacionController::class, 'getHistorialIntentos']
     );
 });
-
-/*
-|--------------------------------------------------------------------------
-| RANKING
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth:sanctum')->group(function () {
-
+// Ranking para pantalla principal
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Top 5 de un módulo específico
     Route::get(
         '/ranking/modulo/{moduloId}/top5',
         [RankingController::class, 'getTop5Modulo']
     );
 
+    // Para pantalla principal - Top 5 de TODOS los módulos
     Route::get(
         '/ranking/pantalla-principal',
         [RankingController::class, 'getPantallaPrincipal']
     );
-
-    Route::get(
-        '/ranking/modulo/{moduloId}/usuario',
-        [RankingController::class, 'getPosicionUsuario']
-    );
-
-    Route::post(
-        '/ranking/actualizar',
-        [RankingController::class, 'webhookActualizarRanking']
-    );
 });
+// routes/api.php
+Route::middleware('auth:sanctum')->group(function () {
+    // Certificaciones del usuario
+    Route::get('/certificaciones', [CertificacionController::class, 'getMisCertificaciones']);
 
+    // Generar nueva certificación
+    Route::post('/modulos/{moduloId}/certificacion/generar', [CertificacionController::class, 'generarCertificacion']);
+
+    // Ver, descargar y verificar certificado específico
+    Route::get('/certificaciones/{codigo}/ver', [CertificacionController::class, 'verCertificado']);
+    Route::get('/certificaciones/{codigo}/descargar', [CertificacionController::class, 'descargarCertificado']);
+    Route::get('/certificaciones/{codigo}/verificar', [CertificacionController::class, 'verificarCertificado']);
+
+    // Herramientas de desarrollo
+    Route::get('/certificaciones/preview', [CertificacionController::class, 'previewCertificado']);
+    Route::get('/certificaciones/info-imagen', [CertificacionController::class, 'getInfoImagenBase']);
+});
 /*
 |--------------------------------------------------------------------------
 | RUTAS DE PRUEBA (TEMPORALES - SIN AUTH)
