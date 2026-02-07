@@ -9,6 +9,7 @@ use App\Http\Controllers\ModuloController;
 use App\Http\Controllers\LeccionesController;
 use App\Http\Controllers\ProgressController;
 use App\Http\Controllers\EjercicioController;
+use App\Http\Controllers\EvaluacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -139,6 +140,52 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get(
         '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/resultados',
         [EjercicioController::class, 'getResultados']
+    );
+});
+
+// Evaluaciones
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Información y estado de evaluación
+    Route::get(
+        '/modulos/{moduloId}/evaluacion',
+        [EvaluacionController::class, 'getEvaluacion']
+    );
+
+    Route::get(
+        '/modulos/{moduloId}/evaluacion/estado',
+        [EvaluacionController::class, 'getEvaluacion']
+    ); // Alias
+
+    // Gestión de intentos
+    Route::post(
+        '/modulos/{moduloId}/evaluacion/iniciar',
+        [EvaluacionController::class, 'iniciarEvaluacion']
+    );
+
+    Route::get(
+        '/modulos/{moduloId}/evaluacion/en-progreso',
+        [EvaluacionController::class, 'getIntentoEnProgreso']
+    );
+
+    Route::post(
+        '/modulos/{moduloId}/evaluacion/{intentoId}/respuesta',
+        [EvaluacionController::class, 'guardarRespuesta']
+    );
+
+    Route::post(
+        '/modulos/{moduloId}/evaluacion/{intentoId}/finalizar',
+        [EvaluacionController::class, 'finalizarEvaluacion']
+    );
+
+    // Resultados e historial
+    Route::get(
+        '/modulos/{moduloId}/evaluacion/{intentoId}/resultado',
+        [EvaluacionController::class, 'getResultadosIntento']
+    );
+
+    Route::get(
+        '/modulos/{moduloId}/evaluacion/intentos',
+        [EvaluacionController::class, 'getHistorialIntentos']
     );
 });
 
