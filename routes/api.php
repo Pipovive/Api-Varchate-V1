@@ -8,6 +8,7 @@ use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ModuloController;
 use App\Http\Controllers\LeccionesController;
 use App\Http\Controllers\ProgressController;
+use App\Http\Controllers\EjercicioController;
 
 /*
 |--------------------------------------------------------------------------
@@ -87,11 +88,20 @@ Route::middleware('auth:sanctum')->group(function () {
     | LECCIONES
     |--------------------------------------------------------------------------
     */
-    Route::get('/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']); // Por slug
-    Route::get('/modulos/{moduloSlug}/lecciones/{leccionSlug}', [LeccionesController::class, 'show']); // Por slugs
+    Route::get(
+        '/modulos/{moduloSlug}/lecciones',
+        [LeccionesController::class, 'index']
+    );
 
-    // Lecciones por IDs
-    Route::get('/modulos/{moduloId}/lecciones/id/{leccionId}', [LeccionesController::class, 'showById']);
+    Route::get(
+        '/modulos/{moduloSlug}/lecciones/{leccionSlug}',
+        [LeccionesController::class, 'show']
+    );
+
+    Route::get(
+        '/modulos/{moduloId}/lecciones/id/{leccionId}',
+        [LeccionesController::class, 'showById']
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -99,12 +109,37 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('progreso')->group(function () {
-        // Guardar última lección vista
-        Route::put('/modulo/{moduloId}/ultima-leccion', [ProgressController::class, 'saveLastLesson']);
 
-        // Obtener última lección para reanudar
-        Route::get('/modulo/{moduloId}/ultima-leccion', [ProgressController::class, 'getLastLesson']);
+        Route::put(
+            '/modulo/{moduloId}/ultima-leccion',
+            [ProgressController::class, 'saveLastLesson']
+        );
+
+        Route::get(
+            '/modulo/{moduloId}/ultima-leccion',
+            [ProgressController::class, 'getLastLesson']
+        );
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | EJERCICIOS INTERACTIVOS
+    |--------------------------------------------------------------------------
+    */
+    Route::get(
+        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios',
+        [EjercicioController::class, 'getEjercicios']
+    );
+
+    Route::post(
+        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}/intento',
+        [EjercicioController::class, 'enviarIntento']
+    );
+
+    Route::get(
+        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/resultados',
+        [EjercicioController::class, 'getResultados']
+    );
 });
 
 /*
@@ -112,8 +147,11 @@ Route::middleware('auth:sanctum')->group(function () {
 | RUTAS DE PRUEBA (TEMPORALES - SIN AUTH)
 |--------------------------------------------------------------------------
 */
-Route::get('/test/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']);
+Route::get(
+    '/test/modulos/{moduloSlug}/lecciones',
+    [LeccionesController::class, 'index']
+);
 
-// Quitar estas rutas públicas (están fuera de auth:sanctum)
+// Rutas públicas deshabilitadas
 // Route::get('/modulos/id/{moduloId}', [ModuloController::class, 'showById']);
 // Route::get('/modulos/{moduloId}/lecciones/id/{leccionId}', [LeccionesController::class, 'showById']);
