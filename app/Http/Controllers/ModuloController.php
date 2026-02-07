@@ -12,8 +12,23 @@ class ModuloController extends Controller
         return Modulo::where('estado', 'activo')
             ->orderBy('orden_global')->get();
     }
+    /**
+ * Obtener módulo por ID
+ */
+    public function showById($id)
+    {
+        $modulo = Modulo::where('id', $id)
+            ->where('estado', 'activo')
+            ->firstOrFail();
 
-    public function show($slug) {
+        return response()->json([
+            'modulo' => $modulo,
+            'lecciones_count' => $modulo->lecciones()->count()
+        ]);
+    }
+
+    public function show($slug)
+    {
         $modulo = Modulo::where('slug', $slug)
             ->where('estado', 'activo')
             ->firstOrFail();
