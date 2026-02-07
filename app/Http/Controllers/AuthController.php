@@ -45,13 +45,13 @@ class AuthController extends Controller
         ]);
 
         UserAttempt::create([
-            'user_id' => $usuario->id,
-            'email' => $usuario->email,
-            'action' => 'register',
-            'success' => true,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+    'user_id' => $usuario->id,
+    'email' => $usuario->email,
+    'action' => 'register',
+    'success' => true,
+    'ip' => $request->ip(),
+    'user_agent' => $request->userAgent(),
+]);
 
 
 
