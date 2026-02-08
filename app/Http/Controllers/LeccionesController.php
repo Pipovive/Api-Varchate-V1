@@ -74,36 +74,45 @@ class LeccionesController extends Controller
     public function showById($moduloId, $leccionId)
     {
         try {
-            \Log::info('Accediendo a lección por IDs - Módulo: ' . $moduloId . ', Lección: ' . $leccionId);
+            $usuario = Auth::user();
 
             // Verificar que el módulo existe y está activo
             $modulo = Modulo::where('id', $moduloId)
                 ->where('estado', 'activo')
-                ->first();
-
-            if (!$modulo) {
-                return response()->json([
-                    'error' => 'Módulo no encontrado o inactivo'
-                ], 404);
-            }
+                ->firstOrFail();
 
             // Buscar la lección
             $leccion = Leccion::where('id', $leccionId)
                 ->where('modulo_id', $modulo->id)
                 ->where('estado', 'activo')
-                ->first();
+                ->firstOrFail();
 
-            if (!$leccion) {
-                return response()->json([
-                    'error' => 'Lección no encontrada o inactiva',
-                    'detalle' => 'La lección ID ' . $leccionId . ' no existe o no pertenece al módulo ID ' . $moduloId
-                ], 404);
+            // ===== VALIDAR DESBLOQUEO LINEAL =====
+            // Si NO es la lección 1 (introducción), verificar anterior
+            if ($leccion->orden > 1) {
+                $leccionAnterior = Leccion::where('modulo_id', $moduloId)
+                    ->where('orden', $leccion->orden - 1)
+                    ->where('estado', 'activo')
+                    ->first();
+
+                if ($leccionAnterior) {
+                    $progresoAnterior = ProgresoLeccion::where('usuario_id', $usuario->id)
+                        ->where('leccion_id', $leccionAnterior->id)
+                        ->where('vista', true)
+                        ->exists();
+
+                    if (!$progresoAnterior) {
+                        return response()->json([
+                            'error' => 'Debes completar la lección anterior primero',
+                            'detalle' => 'Lección requerida: ' . $leccionAnterior->titulo,
+                            'leccion_requerida_id' => $leccionAnterior->id
+                        ], 403);
+                    }
+                }
             }
 
-            // Registrar progreso si el usuario está autenticado
-            if (Auth::check()) {
-                $this->registrarProgreso($leccion->id);
-            }
+            // Registrar progreso si es la primera vez
+            $this->registrarProgreso($leccion->id);
 
             return response()->json([
                 'leccion' => [
@@ -121,21 +130,13 @@ class LeccionesController extends Controller
                         'slug' => $modulo->slug
                     ]
                 ],
-                'debug' => [
-                    'modulo_id' => $modulo->id,
-                    'leccion_id' => $leccion->id,
-                    'autenticado' => Auth::check()
-                ]
+                'acceso_permitido' => true
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error en LeccionesController@showById: ' . $e->getMessage());
-
             return response()->json([
-                'error' => 'Error interno del servidor',
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'error' => 'Error al acceder a lección',
+                'message' => $e->getMessage()
             ], 500);
         }
     }
@@ -146,7 +147,7 @@ class LeccionesController extends Controller
     public function show($moduloSlug, $leccionSlug)
     {
         try {
-            \Log::info('Accediendo a lección: ' . $moduloSlug . '/' . $leccionSlug);
+            $usuario = Auth::user();
 
             // Buscar el módulo
             $modulo = Modulo::where('slug', $moduloSlug)
@@ -171,10 +172,31 @@ class LeccionesController extends Controller
                 ], 404);
             }
 
-            // Registrar progreso si el usuario está autenticado
-            if (Auth::check()) {
-                $this->registrarProgreso($leccion->id);
+            // ===== VALIDAR DESBLOQUEO LINEAL (MISMA VALIDACIÓN QUE showById) =====
+            if ($leccion->orden > 1) {
+                $leccionAnterior = Leccion::where('modulo_id', $modulo->id)
+                    ->where('orden', $leccion->orden - 1)
+                    ->where('estado', 'activo')
+                    ->first();
+
+                if ($leccionAnterior) {
+                    $progresoAnterior = ProgresoLeccion::where('usuario_id', $usuario->id)
+                        ->where('leccion_id', $leccionAnterior->id)
+                        ->where('vista', true)
+                        ->exists();
+
+                    if (!$progresoAnterior) {
+                        return response()->json([
+                            'error' => 'Debes completar la lección anterior primero',
+                            'detalle' => 'Lección requerida: ' . $leccionAnterior->titulo,
+                            'leccion_requerida_id' => $leccionAnterior->id
+                        ], 403);
+                    }
+                }
             }
+
+            // Registrar progreso
+            $this->registrarProgreso($leccion->id);
 
             return response()->json([
                 'leccion' => [
@@ -192,25 +214,17 @@ class LeccionesController extends Controller
                         'slug' => $modulo->slug
                     ]
                 ],
-                'debug' => [
-                    'modulo_id' => $modulo->id,
-                    'leccion_id' => $leccion->id,
-                    'autenticado' => Auth::check()
-                ]
+                'acceso_permitido' => true
             ]);
 
         } catch (\Exception $e) {
             \Log::error('Error en LeccionesController@show: ' . $e->getMessage());
-
             return response()->json([
                 'error' => 'Error interno',
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'message' => $e->getMessage()
             ], 500);
         }
     }
-
     /**
      * Registrar progreso de una lección
      */

@@ -37,11 +37,6 @@ Route::post('/auth/google', [AuthController::class, 'loginWithGoogle']);
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
     ->name('verification.verify');
 
-Route::middleware('auth:sanctum')->post(
-    '/email/resend',
-    [EmailVerificationController::class, 'resend']
-);
-
 /*
 |--------------------------------------------------------------------------
 | RECUPERACIÓN DE CONTRASEÑA
@@ -50,19 +45,21 @@ Route::middleware('auth:sanctum')->post(
 Route::post('/password/forgot', [AuthController::class, 'recoverPassword'])
     ->middleware('throttle:email-resend');
 
-Route::get('/reset-password/{token}', fn ($token) => response()->json([
-    'token' => $token
-]));
+Route::get('/reset-password/{token}', function ($token) {
+    return response()->json(['token' => $token]);
+});
 
 Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 
-Route::get('/password/reset', fn () => response()->json([
-    'message' => 'Token válido, envía email, token y nueva contraseña por POST'
-]));
+Route::get('/password/reset', function () {
+    return response()->json([
+        'message' => 'Token válido, envía email, token y nueva contraseña por POST'
+    ]);
+});
 
 /*
 |--------------------------------------------------------------------------
-| RUTAS AUTENTICADAS
+| RUTAS AUTENTICADAS (TODAS NECESITAN TOKEN)
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
@@ -76,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/me', [UserController::class, 'updateProfile']);
     Route::put('/me/password', [UserController::class, 'updatePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/email/resend', [EmailVerificationController::class, 'resend']);
 
     /*
     |--------------------------------------------------------------------------
@@ -83,157 +81,73 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/modulos', [ModuloController::class, 'index']);
-    Route::get('/modulos/{slug}', [ModuloController::class, 'show']); // Por slug
+    Route::get('/modulos/{slug}', [ModuloController::class, 'show']);           // Por slug
     Route::get('/modulos/id/{moduloId}', [ModuloController::class, 'showById']); // Por ID
-
+    Route::get('/modulos/{slug}/intro-completa', [ModuloController::class, 'getIntroCompleta']);
     /*
     |--------------------------------------------------------------------------
     | LECCIONES
     |--------------------------------------------------------------------------
     */
-    Route::get(
-        '/modulos/{moduloSlug}/lecciones',
-        [LeccionesController::class, 'index']
-    );
-
-    Route::get(
-        '/modulos/{moduloSlug}/lecciones/{leccionSlug}',
-        [LeccionesController::class, 'show']
-    );
-
-    Route::get(
-        '/modulos/{moduloId}/lecciones/id/{leccionId}',
-        [LeccionesController::class, 'showById']
-    );
+    Route::get('/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']);
+    Route::get('/modulos/{moduloSlug}/lecciones/{leccionSlug}', [LeccionesController::class, 'show']);
+    Route::get('/modulos/{moduloId}/lecciones/id/{leccionId}', [LeccionesController::class, 'showById']);
 
     /*
-|--------------------------------------------------------------------------
-| PROGRESO Y NAVEGACIÓN
-|--------------------------------------------------------------------------
-*/
-    Route::middleware('auth:sanctum')->group(function () {
-        // Módulos con progreso para el menú
-        Route::get('/modulos-con-progreso', [ProgresoController::class, 'getModulosConProgreso']);
-
-        // Navegación entre lecciones
-        Route::get(
-            '/modulos/{moduloId}/lecciones/{leccionId}/navegacion',
-            [ProgresoController::class, 'getNavegacionLeccion']
-        );
-
-        // Estado de evaluación
-        Route::get(
-            '/modulos/{moduloId}/evaluacion/estado-desbloqueo',
-            [ProgresoController::class, 'getEstadoEvaluacion']
-        );
-
-        // Marcar lección como vista (cuando da "Siguiente")
-        Route::post(
-            '/modulos/{moduloId}/lecciones/{leccionId}/marcar-vista',
-            [ProgresoController::class, 'marcarLeccionVista']
-        );
-
-        // Lección para continuar
-        Route::get(
-            '/modulos/{moduloId}/continuar',
-            [ProgresoController::class, 'getLeccionParaContinuar']
-        );
-        // Actualizar evaluación aprobada
-        Route::post(
-            '/modulos/{moduloId}/actualizar-evaluacion-aprobada',
-            [ProgresoController::class, 'actualizarEvaluacionAprobada']
-        );
-    });
+    |--------------------------------------------------------------------------
+    | PROGRESO Y NAVEGACIÓN
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/modulos-con-progreso', [ProgresoController::class, 'getModulosConProgreso']);
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}/navegacion', [ProgresoController::class, 'getNavegacionLeccion']);
+    Route::get('/modulos/{moduloId}/evaluacion/estado-desbloqueo', [ProgresoController::class, 'getEstadoEvaluacion']);
+    Route::post('/modulos/{moduloId}/lecciones/{leccionId}/marcar-vista', [ProgresoController::class, 'marcarLeccionVista']);
+    Route::get('/modulos/{moduloId}/continuar', [ProgresoController::class, 'getLeccionParaContinuar']);
+    Route::post('/modulos/{moduloId}/actualizar-evaluacion-aprobada', [ProgresoController::class, 'actualizarEvaluacionAprobada']);
 
     /*
     |--------------------------------------------------------------------------
     | EJERCICIOS INTERACTIVOS
     |--------------------------------------------------------------------------
     */
-    Route::get(
-        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios',
-        [EjercicioController::class, 'getEjercicios']
-    );
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios', [EjercicioController::class, 'getEjercicios']);
+    Route::post('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}/intento', [EjercicioController::class, 'enviarIntento']);
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/resultados', [EjercicioController::class, 'getResultados']);
 
-    Route::post(
-        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}/intento',
-        [EjercicioController::class, 'enviarIntento']
-    );
-
-    Route::get(
-        '/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/resultados',
-        [EjercicioController::class, 'getResultados']
-    );
-});
-
-// Evaluaciones
-Route::middleware(['auth:sanctum'])->group(function () {
+    /*
+    |--------------------------------------------------------------------------
+    | EVALUACIONES
+    |--------------------------------------------------------------------------
+    */
     // Información y estado de evaluación
-    Route::get(
-        '/modulos/{moduloId}/evaluacion',
-        [EvaluacionController::class, 'getEvaluacion']
-    );
-
-    Route::get(
-        '/modulos/{moduloId}/evaluacion/estado',
-        [EvaluacionController::class, 'getEvaluacion']
-    ); // Alias
+    Route::get('/modulos/{moduloId}/evaluacion', [EvaluacionController::class, 'getEvaluacion']);
+    Route::get('/modulos/{moduloId}/evaluacion/estado', [EvaluacionController::class, 'getEvaluacion']); // Alias
 
     // Gestión de intentos
-    Route::post(
-        '/modulos/{moduloId}/evaluacion/iniciar',
-        [EvaluacionController::class, 'iniciarEvaluacion']
-    );
-
-    Route::get(
-        '/modulos/{moduloId}/evaluacion/en-progreso',
-        [EvaluacionController::class, 'getIntentoEnProgreso']
-    );
-
-    Route::post(
-        '/modulos/{moduloId}/evaluacion/{intentoId}/respuesta',
-        [EvaluacionController::class, 'guardarRespuesta']
-    );
-
-    Route::post(
-        '/modulos/{moduloId}/evaluacion/{intentoId}/finalizar',
-        [EvaluacionController::class, 'finalizarEvaluacion']
-    );
+    Route::post('/modulos/{moduloId}/evaluacion/iniciar', [EvaluacionController::class, 'iniciarEvaluacion']);
+    Route::get('/modulos/{moduloId}/evaluacion/en-progreso', [EvaluacionController::class, 'getIntentoEnProgreso']);
+    Route::post('/modulos/{moduloId}/evaluacion/{intentoId}/respuesta', [EvaluacionController::class, 'guardarRespuesta']);
+    Route::post('/modulos/{moduloId}/evaluacion/{intentoId}/finalizar', [EvaluacionController::class, 'finalizarEvaluacion']);
 
     // Resultados e historial
-    Route::get(
-        '/modulos/{moduloId}/evaluacion/{intentoId}/resultado',
-        [EvaluacionController::class, 'getResultadosIntento']
-    );
+    Route::get('/modulos/{moduloId}/evaluacion/{intentoId}/resultado', [EvaluacionController::class, 'getResultadosIntento']);
+    Route::get('/modulos/{moduloId}/evaluacion/intentos', [EvaluacionController::class, 'getHistorialIntentos']);
 
-    Route::get(
-        '/modulos/{moduloId}/evaluacion/intentos',
-        [EvaluacionController::class, 'getHistorialIntentos']
-    );
-});
-// Ranking para pantalla principal
-Route::middleware(['auth:sanctum'])->group(function () {
-    // Top 5 de un módulo específico
-    Route::get(
-        '/ranking/modulo/{moduloId}/top5',
-        [RankingController::class, 'getTop5Modulo']
-    );
+    /*
+    |--------------------------------------------------------------------------
+    | RANKING
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/ranking/modulo/{moduloId}/top5', [RankingController::class, 'getTop5Modulo']);
+    Route::get('/ranking/pantalla-principal', [RankingController::class, 'getPantallaPrincipal']);
 
-    // Para pantalla principal - Top 5 de TODOS los módulos
-    Route::get(
-        '/ranking/pantalla-principal',
-        [RankingController::class, 'getPantallaPrincipal']
-    );
-});
-// routes/api.php
-Route::middleware('auth:sanctum')->group(function () {
-    // Certificaciones del usuario
+    /*
+    |--------------------------------------------------------------------------
+    | CERTIFICACIONES
+    |--------------------------------------------------------------------------
+    */
     Route::get('/certificaciones', [CertificacionController::class, 'getMisCertificaciones']);
-
-    // Generar nueva certificación
     Route::post('/modulos/{moduloId}/certificacion/generar', [CertificacionController::class, 'generarCertificacion']);
-
-    // Ver, descargar y verificar certificado específico
     Route::get('/certificaciones/{codigo}/ver', [CertificacionController::class, 'verCertificado']);
     Route::get('/certificaciones/{codigo}/descargar', [CertificacionController::class, 'descargarCertificado']);
     Route::get('/certificaciones/{codigo}/verificar', [CertificacionController::class, 'verificarCertificado']);
@@ -242,16 +156,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/certificaciones/preview', [CertificacionController::class, 'previewCertificado']);
     Route::get('/certificaciones/info-imagen', [CertificacionController::class, 'getInfoImagenBase']);
 });
+
 /*
 |--------------------------------------------------------------------------
 | RUTAS DE PRUEBA (TEMPORALES - SIN AUTH)
 |--------------------------------------------------------------------------
 */
-Route::get(
-    '/test/modulos/{moduloSlug}/lecciones',
-    [LeccionesController::class, 'index']
-);
-
-// Rutas públicas deshabilitadas
-// Route::get('/modulos/id/{moduloId}', [ModuloController::class, 'showById']);
-// Route::get('/modulos/{moduloId}/lecciones/id/{leccionId}', [LeccionesController::class, 'showById']);
+Route::get('/test/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']);

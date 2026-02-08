@@ -93,7 +93,7 @@ class ProgresoController extends Controller
                 ->where('estado', 'activo')
                 ->firstOrFail();
 
-            // Lección anterior
+            // Lección anterior (siempre disponible para navegar hacia atrás)
             $leccionAnterior = Leccion::where('modulo_id', $moduloId)
                 ->where('orden', '<', $leccionActual->orden)
                 ->where('estado', 'activo')
@@ -107,8 +107,23 @@ class ProgresoController extends Controller
                 ->orderBy('orden')
                 ->first();
 
-            // Verificar si la siguiente está desbloqueada
-            $siguienteDesbloqueada = true; // Por tu regla de "siguiente" siempre disponible
+            // ===== VALIDAR SI SIGUIENTE ESTÁ DESBLOQUEADA =====
+            $siguienteDesbloqueada = false;
+
+            if ($leccionSiguiente) {
+                // Si es la introducción (orden 1), siguiente siempre desbloqueada
+                if ($leccionActual->orden == 1) {
+                    $siguienteDesbloqueada = true;
+                } else {
+                    // Verificar si ya completó la lección actual
+                    $progresoActual = ProgresoLeccion::where('usuario_id', $usuario->id)
+                        ->where('leccion_id', $leccionActual->id)
+                        ->where('vista', true)
+                        ->exists();
+
+                    $siguienteDesbloqueada = $progresoActual;
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -117,23 +132,28 @@ class ProgresoController extends Controller
                         'id' => $leccionActual->id,
                         'titulo' => $leccionActual->titulo,
                         'orden' => $leccionActual->orden,
-                        'es_ultima' => !$leccionSiguiente
+                        'completada' => ProgresoLeccion::where('usuario_id', $usuario->id)
+                            ->where('leccion_id', $leccionActual->id)
+                            ->where('vista', true)
+                            ->exists()
                     ],
                     'anterior' => $leccionAnterior ? [
                         'id' => $leccionAnterior->id,
                         'titulo' => $leccionAnterior->titulo,
-                        'orden' => $leccionAnterior->orden,
-                        'url' => "/api/modulos/{$moduloId}/lecciones/id/{$leccionAnterior->id}"
+                        'orden' => $leccionAnterior->orden
                     ] : null,
                     'siguiente' => $leccionSiguiente ? [
                         'id' => $leccionSiguiente->id,
                         'titulo' => $leccionSiguiente->titulo,
                         'orden' => $leccionSiguiente->orden,
                         'desbloqueada' => $siguienteDesbloqueada,
-                        'url' => "/api/modulos/{$moduloId}/lecciones/id/{$leccionSiguiente->id}"
+                        'mensaje' => $siguienteDesbloqueada
+                            ? 'Disponible'
+                            : 'Completa esta lección primero'
                     ] : null,
                     'es_ultima_leccion' => !$leccionSiguiente,
-                    'evaluacion_disponible' => !$leccionSiguiente
+                    'evaluacion_disponible' => !$leccionSiguiente &&
+                        $this->estaEvaluacionDesbloqueada($moduloId, $usuario->id)
                 ]
             ], 200);
 
@@ -144,6 +164,22 @@ class ProgresoController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function estaEvaluacionDesbloqueada($moduloId, $usuarioId)
+    {
+        $totalLecciones = Leccion::where('modulo_id', $moduloId)
+            ->where('estado', 'activo')
+            ->count();
+
+        $leccionesVistas = ProgresoLeccion::whereHas('leccion', function ($q) use ($moduloId) {
+            $q->where('modulo_id', $moduloId);
+        })
+        ->where('usuario_id', $usuarioId)
+        ->where('vista', true)
+        ->count();
+
+        return $totalLecciones > 0 && $leccionesVistas >= $totalLecciones;
     }
 
     /**
