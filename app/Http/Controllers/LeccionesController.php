@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Auth;
 class LeccionesController extends Controller
 {
     /**
-     * Obtener todas las lecciones de un módulo (versión simplificada)
-     */
+ * Obtener todas las lecciones de un módulo CON ESTADO DE DISPONIBILIDAD
+ */
     public function index(Request $request, $moduloSlug)
     {
         try {
@@ -29,11 +29,42 @@ class LeccionesController extends Controller
                 ], 404);
             }
 
-            // Obtener lecciones directamente sin scopes complejos
+            $usuario = Auth::user();
+
+            // Obtener lecciones
             $lecciones = Leccion::where('modulo_id', $modulo->id)
                 ->where('estado', 'activo')
                 ->orderBy('orden')
                 ->get();
+
+            // Obtener progreso del usuario en este módulo
+            $progresoLecciones = ProgresoLeccion::where('usuario_id', $usuario->id)
+                ->whereIn('leccion_id', $lecciones->pluck('id'))
+                ->where('vista', true)
+                ->pluck('leccion_id')
+                ->toArray();
+
+            $leccionesConEstado = $lecciones->map(function ($leccion) use ($progresoLecciones, $usuario, $modulo) {
+
+                // Determinar si ya fue vista
+                $vista = in_array($leccion->id, $progresoLecciones);
+
+                // Determinar si está disponible (desbloqueada)
+                $disponible = $this->estaLeccionDisponible($leccion, $usuario, $modulo, $progresoLecciones);
+
+                return [
+                    'id' => $leccion->id,
+                    'titulo' => $leccion->titulo,
+                    'slug' => $leccion->slug,
+                    'orden' => $leccion->orden,
+                    'tiene_editor_codigo' => (bool)$leccion->tiene_editor_codigo,
+                    'tiene_ejercicios' => (bool)$leccion->tiene_ejercicios,
+                    'cantidad_ejercicios' => $leccion->cantidad_ejercicios,
+                    'vista' => $vista,
+                    'disponible' => $disponible,
+                    'estado' => $this->getEstadoLeccion($vista, $disponible)
+                ];
+            });
 
             return response()->json([
                 'modulo' => [
@@ -41,19 +72,13 @@ class LeccionesController extends Controller
                     'titulo' => $modulo->titulo,
                     'slug' => $modulo->slug
                 ],
-                'lecciones' => $lecciones->map(function ($leccion) {
-                    return [
-                        'id' => $leccion->id,
-                        'titulo' => $leccion->titulo,
-                        'slug' => $leccion->slug,
-                        'orden' => $leccion->orden,
-                        'tiene_editor_codigo' => (bool)$leccion->tiene_editor_codigo,
-                        'tiene_ejercicios' => (bool)$leccion->tiene_ejercicios,
-                        'cantidad_ejercicios' => $leccion->cantidad_ejercicios
-                    ];
-                }),
+                'lecciones' => $leccionesConEstado,
                 'total' => $lecciones->count(),
-                'debug' => 'Endpoint funcionando'
+                'estadisticas' => [
+                    'vistas' => count($progresoLecciones),
+                    'disponibles' => $leccionesConEstado->where('disponible', true)->count(),
+                    'completadas' => $leccionesConEstado->where('vista', true)->count()
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -61,10 +86,46 @@ class LeccionesController extends Controller
 
             return response()->json([
                 'error' => 'Error interno',
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'message' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Determinar si una lección está disponible para el usuario
+     */
+    private function estaLeccionDisponible($leccion, $usuario, $modulo, $progresoLecciones)
+    {
+        // Lección 1 siempre disponible (introducción)
+        if ($leccion->orden === 1) {
+            return true;
+        }
+
+        // Para lecciones > 1, verificar si la anterior fue vista
+        $leccionAnterior = Leccion::where('modulo_id', $modulo->id)
+            ->where('orden', $leccion->orden - 1)
+            ->where('estado', 'activo')
+            ->first();
+
+        if (!$leccionAnterior) {
+            return false;
+        }
+
+        // Verificar si la lección anterior está en el progreso
+        return in_array($leccionAnterior->id, $progresoLecciones);
+    }
+
+    /**
+     * Obtener estado legible de la lección
+     */
+    private function getEstadoLeccion($vista, $disponible)
+    {
+        if ($vista) {
+            return 'completada';
+        } elseif ($disponible) {
+            return 'disponible';
+        } else {
+            return 'bloqueada';
         }
     }
 

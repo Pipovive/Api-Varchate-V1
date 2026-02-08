@@ -123,6 +123,17 @@ Route::middleware('auth:sanctum')->group(function () {
     | EVALUACIONES
     |--------------------------------------------------------------------------
     */
+    // Sincronización manual
+    Route::post(
+        '/modulos/{moduloId}/sincronizar-evaluacion',
+        [ProgresoController::class, 'sincronizarEvaluacion']
+    );
+
+    // Forzar actualización de progreso
+    Route::post(
+        '/modulos/{moduloId}/forzar-actualizacion',
+        [ProgresoController::class, 'forzarActualizacionProgreso']
+    );
     // Información y estado de evaluación
     Route::get('/modulos/{moduloId}/evaluacion', [EvaluacionController::class, 'getEvaluacion']);
     Route::get('/modulos/{moduloId}/evaluacion/estado', [EvaluacionController::class, 'getEvaluacion']); // Alias

@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 
-
 use function Symfony\Component\String\u;
 
 class AuthController extends Controller
@@ -101,7 +100,6 @@ class AuthController extends Controller
         ]);
 
         $status = PasswordBroker::reset(
-
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user, $password) use ($request) {
                 $user->password = Hash::make($password);
