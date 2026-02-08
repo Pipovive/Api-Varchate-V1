@@ -14,8 +14,6 @@ use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 
 
-
-
 use function Symfony\Component\String\u;
 
 class AuthController extends Controller
