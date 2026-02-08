@@ -114,6 +114,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}/intento', [EjercicioController::class, 'enviarIntento']);
     Route::get('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/resultados', [EjercicioController::class, 'getResultados']);
 
+    // Eliminar cuenta
+    Route::delete('/account', [AuthController::class, 'deleteAccount']);
+
+
     /*
     |--------------------------------------------------------------------------
     | EVALUACIONES
