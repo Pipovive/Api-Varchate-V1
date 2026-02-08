@@ -261,4 +261,25 @@ class AuthController extends Controller
     {
         return response()->json(['message' => 'conectado']);
     }
+
+    public function deleteAccount(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = $request->user(); // usuario autenticado
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Contraseña incorrecta'
+            ], 403);
+        }
+
+        $user->delete();
+
+        return response()->json([
+            'message' => 'Cuenta eliminada correctamente'
+        ]);
+    }
 }
