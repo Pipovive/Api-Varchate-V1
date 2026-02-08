@@ -14,7 +14,8 @@ use Illuminate\Contracts\Auth\CanResetPassword;
 
 class Usuario extends Authenticatable implements MustVerifyEmail
 {
-    use HasApiTokens, Notifiable;
+    use HasApiTokens;
+    use Notifiable;
 
     protected $table = "usuarios";
 
@@ -51,10 +52,32 @@ class Usuario extends Authenticatable implements MustVerifyEmail
     }
     public function sendEmailVerificationNotification()
     {
-        $this->notify(new VerifyEmailCustom);
+        $this->notify(new VerifyEmailCustom());
     }
     public function sendPasswordResetNotification($token)
     {
         $this->notify(new ResetPasswordCustom($token));
+    }
+
+    //metodos para progreso by alejandro
+
+    public function progresoModulos()
+    {
+        return $this->hasMany(ProgresoModulo::class, 'usuario_id');
+    }
+
+    public function progresoLecciones()
+    {
+        return $this->hasMany(ProgresoLeccion::class, 'usuario_id');
+    }
+
+    public function intentosEvaluaciones()
+    {
+        return $this->hasMany(IntentoEvaluacion::class, 'usuario_id');
+    }
+
+    public function certificaciones()
+    {
+        return $this->hasMany(Certificacion::class, 'usuario_id');
     }
 }
