@@ -480,6 +480,10 @@ class EvaluacionController extends Controller
      * Finalizar evaluación
      * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
      */
+    /**
+ * Finalizar evaluación
+ * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
+ */
     public function finalizarEvaluacion(Request $request, $moduloId, $intentoId)
     {
         try {
@@ -499,31 +503,62 @@ class EvaluacionController extends Controller
             // Calcular resultados
             $intento->calcularResultado();
 
+            // ===== ¡IMPORTANTE! LLAMAR AL PROGRESO CONTROLLER =====
+            // Esto actualiza automáticamente la base de datos
+            $progresoController = new ProgresoController();
+            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
+
+            // También llamar explícitamente al método de evaluación aprobada
+            $progresoController->actualizarEvaluacionAprobada($moduloId);
+
             // Verificar si aprobó
             $aprobado = $intento->aprobado;
 
+            // Verificar progreso actualizado
+            $progresoActualizado = \App\Models\ProgresoModulo::where('usuario_id', $usuario->id)
+                ->where('modulo_id', $moduloId)
+                ->first();
+
+            $responseData = [
+                'intento_id' => $intento->id,
+                'evaluacion_id' => $intento->evaluacion_id,
+                'fecha_fin' => $intento->fecha_fin,
+                'tiempo_utilizado_segundos' => $intento->tiempo_utilizado,
+                'tiempo_utilizado_minutos' => round($intento->tiempo_utilizado / 60, 2),
+                'puntuacion_total' => (float) $intento->puntuacion_total,
+                'porcentaje_obtenido' => (float) $intento->porcentaje_obtenido,
+                'preguntas_correctas' => $intento->preguntas_correctas,
+                'preguntas_incorrectas' => $intento->preguntas_incorrectas,
+                'preguntas_totales' => $intento->preguntas_correctas + $intento->preguntas_incorrectas,
+                'aprobado' => $aprobado,
+                'puntaje_minimo' => (float) $intento->evaluacion->puntaje_minimo,
+                'mensaje' => $aprobado ?
+                    '¡Felicidades! Has aprobado la evaluación.' :
+                    'No has alcanzado el puntaje mínimo. Puedes intentarlo nuevamente.'
+            ];
+
+            // Si aprobó, agregar información de certificación
+            if ($aprobado && $progresoActualizado) {
+                $responseData['certificacion'] = [
+                    'disponible' => $progresoActualizado->certificado_disponible,
+                    'modulo_id' => $moduloId,
+                    'mensaje' => $progresoActualizado->certificado_disponible
+                        ? '¡Ya puedes generar tu certificado!'
+                        : 'Completa el 100% del módulo para certificar.'
+                ];
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'intento_id' => $intento->id,
-                    'evaluacion_id' => $intento->evaluacion_id,
-                    'fecha_fin' => $intento->fecha_fin,
-                    'tiempo_utilizado_segundos' => $intento->tiempo_utilizado,
-                    'tiempo_utilizado_minutos' => round($intento->tiempo_utilizado / 60, 2),
-                    'puntuacion_total' => (float) $intento->puntuacion_total,
-                    'porcentaje_obtenido' => (float) $intento->porcentaje_obtenido,
-                    'preguntas_correctas' => $intento->preguntas_correctas,
-                    'preguntas_incorrectas' => $intento->preguntas_incorrectas,
-                    'preguntas_totales' => $intento->preguntas_correctas + $intento->preguntas_incorrectas,
-                    'aprobado' => $aprobado,
-                    'puntaje_minimo' => (float) $intento->evaluacion->puntaje_minimo,
-                    'mensaje' => $aprobado ?
-                        '¡Felicidades! Has aprobado la evaluación.' :
-                        'No has alcanzado el puntaje mínimo. Puedes intentarlo nuevamente.'
-                ]
+                'data' => $responseData
             ], 200);
 
         } catch (\Exception $e) {
+            \Log::error('Error al finalizar evaluación', [
+                'error' => $e->getMessage(),
+                'modulo_id' => $moduloId,
+                'intento_id' => $intentoId
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error al finalizar evaluación',
