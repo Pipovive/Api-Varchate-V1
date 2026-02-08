@@ -7,7 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ModuloController;
 use App\Http\Controllers\LeccionesController;
-use App\Http\Controllers\ProgressController;
+use App\Http\Controllers\ProgresoController;
 use App\Http\Controllers\EjercicioController;
 use App\Http\Controllers\EvaluacionController;
 use App\Http\Controllers\RankingController;
@@ -107,20 +107,41 @@ Route::middleware('auth:sanctum')->group(function () {
     );
 
     /*
-    |--------------------------------------------------------------------------
-    | PROGRESO Y REANUDACIÓN
-    |--------------------------------------------------------------------------
-    */
-    Route::prefix('progreso')->group(function () {
+|--------------------------------------------------------------------------
+| PROGRESO Y NAVEGACIÓN
+|--------------------------------------------------------------------------
+*/
+    Route::middleware('auth:sanctum')->group(function () {
+        // Módulos con progreso para el menú
+        Route::get('/modulos-con-progreso', [ProgresoController::class, 'getModulosConProgreso']);
 
-        Route::put(
-            '/modulo/{moduloId}/ultima-leccion',
-            [ProgressController::class, 'saveLastLesson']
+        // Navegación entre lecciones
+        Route::get(
+            '/modulos/{moduloId}/lecciones/{leccionId}/navegacion',
+            [ProgresoController::class, 'getNavegacionLeccion']
         );
 
+        // Estado de evaluación
         Route::get(
-            '/modulo/{moduloId}/ultima-leccion',
-            [ProgressController::class, 'getLastLesson']
+            '/modulos/{moduloId}/evaluacion/estado-desbloqueo',
+            [ProgresoController::class, 'getEstadoEvaluacion']
+        );
+
+        // Marcar lección como vista (cuando da "Siguiente")
+        Route::post(
+            '/modulos/{moduloId}/lecciones/{leccionId}/marcar-vista',
+            [ProgresoController::class, 'marcarLeccionVista']
+        );
+
+        // Lección para continuar
+        Route::get(
+            '/modulos/{moduloId}/continuar',
+            [ProgresoController::class, 'getLeccionParaContinuar']
+        );
+        // Actualizar evaluación aprobada
+        Route::post(
+            '/modulos/{moduloId}/actualizar-evaluacion-aprobada',
+            [ProgresoController::class, 'actualizarEvaluacionAprobada']
         );
     });
 
