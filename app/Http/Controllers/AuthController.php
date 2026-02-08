@@ -32,7 +32,7 @@ class AuthController extends Controller
                     ->mixedCase()
                     ->numbers()
             ],
-            'terms_accepted' => 'required|boolean|in:1'
+            'terms_accepted' => 'required|boolean'
         ]);
 
         $usuario = Usuario::create([
@@ -42,11 +42,23 @@ class AuthController extends Controller
             'terms_accepted' => true,
             'terms_accepted_at' => now(),
             'avatar_id' => 1,
+        ]);
+
+        UserAttempt::create([
+            'user_id' => $usuario->id,
+            'email' => $usuario->email,
+            'action' => 'register',
+            'success' => true,
+            'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
+
+
         $usuario->sendEmailVerificationNotification();
         //Creacion de token de sacnctum
+
+
 
         return response()->json([
             'message' => 'Se envió un correo a tu email para comprobar que eres tú',
@@ -93,7 +105,7 @@ class AuthController extends Controller
         $status = PasswordBroker::reset(
 
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
+            function ($user, $password) use ($request) {
                 $user->password = Hash::make($password);
 
                 $user->save();
@@ -103,8 +115,8 @@ class AuthController extends Controller
                     'action' => 'password_reset',
                     'status' => 'success',
                     'success' => true,
-                    'ip_address' => $user->ip(),
-                    'user_agent' => $user->userAgent(),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
                 ]);
             }
         );
@@ -248,5 +260,26 @@ class AuthController extends Controller
     public function test()
     {
         return response()->json(['message' => 'conectado']);
+    }
+
+    public function deleteAccount(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = $request->user(); // usuario autenticado
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Contraseña incorrecta'
+            ], 403);
+        }
+
+        $user->delete();
+
+        return response()->json([
+            'message' => 'Cuenta eliminada correctamente'
+        ]);
     }
 }

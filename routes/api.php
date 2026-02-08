@@ -73,20 +73,19 @@ Route::get('/password/reset', function () {
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Obtener usuario autenticado
-    Route::middleware('auth:sanctum')->group(function () {
+    // Perfil
+    Route::get('/me', [UserController::class, 'me']);
+    Route::put('/me', [UserController::class, 'updateProfile']);
 
-        // Perfil
-        Route::get('/me', [UserController::class, 'me']);
-        Route::put('/me', [UserController::class, 'updateProfile']);
-
-        // Contraseña
-        Route::put('/me/password', [UserController::class, 'updatePassword']);
-    });
-
+    // Contraseña
+    Route::put('/me/password', [UserController::class, 'updatePassword']);
 
     // Logout (revoca token actual)
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Eliminar cuenta
+    Route::delete('/account', [AuthController::class, 'deleteAccount']);
+
 
     /*
     |--------------------------------------------------------------------------
