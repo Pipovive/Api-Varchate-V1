@@ -33,17 +33,24 @@ class ProgresoController extends Controller
                     'modulo_id' => $modulo->id
                 ]);
 
-                // Calcular porcentaje basado en lecciones vistas
+                // RECALCULAR con nueva lógica
                 $totalLecciones = $modulo->lecciones()->count();
                 $leccionesVistas = $this->contarLeccionesVistas($modulo->id, $usuario->id);
-                $porcentaje = $totalLecciones > 0 ? ($leccionesVistas / $totalLecciones) * 100 : 0;
+
+                // 80% lecciones, 20% evaluación
+                $porcentajeLecciones = $totalLecciones > 0
+                    ? ($leccionesVistas / $totalLecciones) * 80
+                    : 0;
+
+                $porcentajeEvaluacion = $progreso->evaluacion_aprobada ? 20 : 0;
+                $porcentajeTotal = $porcentajeLecciones + $porcentajeEvaluacion;
 
                 // Actualizar si es necesario
-                if ($progreso->porcentaje_completado != $porcentaje) {
+                if ($progreso->porcentaje_completado != $porcentajeTotal) {
                     $ultimaLeccion = $this->obtenerUltimaLeccionVista($modulo->id, $usuario->id);
 
                     $progreso->update([
-                        'porcentaje_completado' => $porcentaje,
+                        'porcentaje_completado' => $porcentajeTotal,
                         'lecciones_vistas' => $leccionesVistas,
                         'total_lecciones' => $totalLecciones,
                         'ultima_leccion_vista_id' => $ultimaLeccion ? $ultimaLeccion->id : null,
@@ -59,8 +66,12 @@ class ProgresoController extends Controller
                     'progreso' => (float) $progreso->porcentaje_completado,
                     'lecciones_vistas' => $progreso->lecciones_vistas,
                     'total_lecciones' => $progreso->total_lecciones,
-                    'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada, // AÑADIDO
-                    'certificado_disponible' => (bool) $progreso->certificado_disponible
+                    'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada,
+                    'certificado_disponible' => (bool) $progreso->certificado_disponible,
+                    'desglose' => [ // Nuevo: mostrar desglose
+                        'lecciones' => $porcentajeLecciones,
+                        'evaluacion' => $porcentajeEvaluacion
+                    ]
                 ];
             }
 
@@ -77,7 +88,6 @@ class ProgresoController extends Controller
             ], 500);
         }
     }
-
     /**
      * Obtener navegación para una lección (anterior/siguiente)
      * GET /modulos/{moduloId}/lecciones/{leccionId}/navegacion
@@ -428,7 +438,22 @@ class ProgresoController extends Controller
             ->count();
 
         $leccionesVistas = $this->contarLeccionesVistas($moduloId, $usuarioId);
-        $porcentaje = $totalLecciones > 0 ? ($leccionesVistas / $totalLecciones) * 100 : 0;
+
+        // Obtener estado evaluación
+        $progresoActual = ProgresoModulo::where('usuario_id', $usuarioId)
+            ->where('modulo_id', $moduloId)
+            ->first();
+
+        $evaluacionAprobada = $progresoActual ? (bool)$progresoActual->evaluacion_aprobada : false;
+
+        // NUEVA LÓGICA: 80% lecciones, 20% evaluación
+        $porcentajeLecciones = $totalLecciones > 0
+            ? ($leccionesVistas / $totalLecciones) * 80
+            : 0;
+
+        $porcentajeEvaluacion = $evaluacionAprobada ? 20 : 0;
+
+        $porcentajeTotal = $porcentajeLecciones + $porcentajeEvaluacion;
 
         // Obtener última lección vista
         $ultimaLeccion = $this->obtenerUltimaLeccionVista($moduloId, $usuarioId);
@@ -439,15 +464,37 @@ class ProgresoController extends Controller
                 'modulo_id' => $moduloId
             ],
             [
-                'porcentaje_completado' => $porcentaje,
+                'porcentaje_completado' => $porcentajeTotal,
                 'lecciones_vistas' => $leccionesVistas,
                 'total_lecciones' => $totalLecciones,
+                'evaluacion_aprobada' => $evaluacionAprobada,
+                'certificado_disponible' => $evaluacionAprobada, // Certificado cuando aprueba
                 'ultima_leccion_vista_id' => $ultimaLeccion ? $ultimaLeccion->id : null,
                 'fecha_ultimo_progreso' => now()
             ]
         );
 
+        // Actualizar ranking si cambió
+        if ($progresoActual && $progresoActual->porcentaje_completado != $porcentajeTotal) {
+            $this->actualizarRanking($moduloId, $usuarioId, $porcentajeTotal);
+        }
+
         return $progresoModulo;
+    }
+
+    private function actualizarRanking($moduloId, $usuarioId, $porcentaje)
+    {
+        // Actualizar tabla ranking
+        \App\Models\Ranking::updateOrCreate(
+            [
+                'modulo_id' => $moduloId,
+                'usuario_id' => $usuarioId
+            ],
+            [
+                'porcentaje_progreso' => $porcentaje,
+                'fecha_ultima_actualizacion' => now()
+            ]
+        );
     }
 
     private function obtenerUltimaLeccionVista($moduloId, $usuarioId)
