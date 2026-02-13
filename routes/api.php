@@ -178,3 +178,66 @@ Route::middleware('auth:sanctum')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::get('/test/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']);
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| RUTAS DE ADMINISTRACIÓN (SOLO ADMINISTRADORES)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin')->group(function () {
+
+    // Dashboard
+    Route::get('/dashboard', [App\Http\Controllers\Admin\DashboardController::class, 'index']);
+    Route::get('/dashboard/charts', [App\Http\Controllers\Admin\DashboardController::class, 'charts']);
+    Route::get('/dashboard/recent-activity', [App\Http\Controllers\Admin\DashboardController::class, 'recentActivity']);
+
+    // Gestión de Usuarios
+    Route::get('/usuarios', [App\Http\Controllers\Admin\UserController::class, 'index']);
+    Route::get('/usuarios/statistics', [App\Http\Controllers\Admin\UserController::class, 'statistics']);
+    Route::get('/usuarios/avatars', [App\Http\Controllers\Admin\UserController::class, 'getAvatars']);
+    Route::post('/usuarios', [App\Http\Controllers\Admin\UserController::class, 'store']);
+    Route::get('/usuarios/{id}', [App\Http\Controllers\Admin\UserController::class, 'show']);
+    Route::put('/usuarios/{id}', [App\Http\Controllers\Admin\UserController::class, 'update']);
+    Route::delete('/usuarios/{id}', [App\Http\Controllers\Admin\UserController::class, 'destroy']);
+    Route::patch('/usuarios/{id}/toggle-status', [App\Http\Controllers\Admin\UserController::class, 'toggleStatus']);
+
+    // Gestión de Módulos
+    Route::get('/modulos', [App\Http\Controllers\Admin\ModuloController::class, 'index']);
+    Route::get('/modulos/statistics', [App\Http\Controllers\Admin\ModuloController::class, 'statistics']);
+    Route::post('/modulos', [App\Http\Controllers\Admin\ModuloController::class, 'store']);
+    Route::get('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'show']);
+    Route::put('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'update']);
+    Route::delete('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'destroy']);
+    Route::post('/modulos/reorder', [App\Http\Controllers\Admin\ModuloController::class, 'reorder']);
+
+    // Gestión de Lecciones (dentro de módulos)
+    Route::get('/modulos/{moduloId}/lecciones', [App\Http\Controllers\Admin\LeccionController::class, 'index']);
+    Route::post('/modulos/{moduloId}/lecciones', [App\Http\Controllers\Admin\LeccionController::class, 'store']);
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}', [App\Http\Controllers\Admin\LeccionController::class, 'show']);
+    Route::put('/modulos/{moduloId}/lecciones/{leccionId}', [App\Http\Controllers\Admin\LeccionController::class, 'update']);
+    Route::delete('/modulos/{moduloId}/lecciones/{leccionId}', [App\Http\Controllers\Admin\LeccionController::class, 'destroy']);
+    Route::post('/modulos/{moduloId}/lecciones/reorder', [App\Http\Controllers\Admin\LeccionController::class, 'reorder']);
+
+    // Gestión de Ejercicios (dentro de lecciones)
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios', [App\Http\Controllers\Admin\EjercicioController::class, 'index']);
+    Route::post('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios', [App\Http\Controllers\Admin\EjercicioController::class, 'store']);
+    Route::get('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}', [App\Http\Controllers\Admin\EjercicioController::class, 'show']);
+    Route::put('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}', [App\Http\Controllers\Admin\EjercicioController::class, 'update']);
+    Route::delete('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}', [App\Http\Controllers\Admin\EjercicioController::class, 'destroy']);
+    Route::put('/modulos/{moduloId}/lecciones/{leccionId}/ejercicios/{ejercicioId}/opciones', [App\Http\Controllers\Admin\EjercicioController::class, 'updateOpciones']);
+
+    // Gestión de Evaluaciones
+    Route::get('/modulos/{moduloId}/evaluacion', [App\Http\Controllers\Admin\EvaluacionController::class, 'show']);
+    Route::put('/modulos/{moduloId}/evaluacion/config', [App\Http\Controllers\Admin\EvaluacionController::class, 'updateConfig']);
+    Route::get('/evaluaciones/statistics', [App\Http\Controllers\Admin\EvaluacionController::class, 'statistics']);
+
+    // Gestión de Preguntas de Evaluación
+    Route::post('/modulos/{moduloId}/evaluacion/{evaluacionId}/preguntas', [App\Http\Controllers\Admin\EvaluacionController::class, 'storePregunta']);
+    Route::put('/modulos/{moduloId}/evaluacion/{evaluacionId}/preguntas/{preguntaId}', [App\Http\Controllers\Admin\EvaluacionController::class, 'updatePregunta']);
+    Route::delete('/modulos/{moduloId}/evaluacion/{evaluacionId}/preguntas/{preguntaId}', [App\Http\Controllers\Admin\EvaluacionController::class, 'destroyPregunta']);
+    Route::put('/modulos/{moduloId}/evaluacion/{evaluacionId}/preguntas/{preguntaId}/opciones', [App\Http\Controllers\Admin\EvaluacionController::class, 'updateOpcionesPregunta']);
+});
