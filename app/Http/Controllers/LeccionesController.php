@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Auth;
 class LeccionesController extends Controller
 {
     /**
- * Obtener todas las lecciones de un módulo CON ESTADO DE DISPONIBILIDAD
- */
+     * Obtener todas las lecciones de un módulo CON ESTADO DE DISPONIBILIDAD
+     */
     public function index(Request $request, $moduloSlug)
     {
         try {
@@ -80,7 +80,6 @@ class LeccionesController extends Controller
                     'completadas' => $leccionesConEstado->where('vista', true)->count()
                 ]
             ]);
-
         } catch (\Exception $e) {
             \Log::error('Error en LeccionesController@index: ' . $e->getMessage());
 
@@ -193,7 +192,6 @@ class LeccionesController extends Controller
                 ],
                 'acceso_permitido' => true
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Error al acceder a lección',
@@ -277,7 +275,6 @@ class LeccionesController extends Controller
                 ],
                 'acceso_permitido' => true
             ]);
-
         } catch (\Exception $e) {
             \Log::error('Error en LeccionesController@show: ' . $e->getMessage());
             return response()->json([
@@ -318,7 +315,6 @@ class LeccionesController extends Controller
 
                 \Log::info('Progreso actualizado para usuario ' . $usuarioId . ', lección ' . $leccionId);
             }
-
         } catch (\Exception $e) {
             \Log::error('Error al registrar progreso: ' . $e->getMessage());
             // No lanzamos excepción para no romper el flujo principal
@@ -339,7 +335,6 @@ class LeccionesController extends Controller
             return response()->json([
                 'leccion' => $leccion
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Lección no encontrada',
@@ -347,4 +342,203 @@ class LeccionesController extends Controller
             ], 404);
         }
     }
+
+
+    /**
+     * Obtener lección por ID usando SLUG del módulo
+     */
+    public function showByIdWithSlug($moduloSlug, $leccionId)
+    {
+        try {
+            $usuario = Auth::user();
+
+            // Buscar módulo por SLUG
+            $modulo = Modulo::where('slug', $moduloSlug)
+                ->where('estado', 'activo')
+                ->firstOrFail();
+
+            // Buscar lección por ID
+            $leccion = Leccion::where('id', $leccionId)
+                ->where('modulo_id', $modulo->id)
+                ->where('estado', 'activo')
+                ->firstOrFail();
+
+            // Validar desbloqueo lineal
+            if ($leccion->orden > 1) {
+                $leccionAnterior = Leccion::where('modulo_id', $modulo->id)
+                    ->where('orden', $leccion->orden - 1)
+                    ->where('estado', 'activo')
+                    ->first();
+
+                if ($leccionAnterior) {
+                    $progresoAnterior = ProgresoLeccion::where('usuario_id', $usuario->id)
+                        ->where('leccion_id', $leccionAnterior->id)
+                        ->where('vista', true)
+                        ->exists();
+
+                    if (!$progresoAnterior) {
+                        return response()->json([
+                            'error' => 'Debes completar la lección anterior primero',
+                            'detalle' => 'Lección requerida: ' . $leccionAnterior->titulo,
+                            'leccion_requerida_id' => $leccionAnterior->id
+                        ], 403);
+                    }
+                }
+            }
+
+            // Registrar progreso
+            $this->registrarProgreso($leccion->id);
+
+            return response()->json([
+                'leccion' => [
+                    'id' => $leccion->id,
+                    'titulo' => $leccion->titulo,
+                    'slug' => $leccion->slug,
+                    'contenido' => $leccion->contenido,
+                    'orden' => $leccion->orden,
+                    'tiene_editor_codigo' => (bool)$leccion->tiene_editor_codigo,
+                    'tiene_ejercicios' => (bool)$leccion->tiene_ejercicios,
+                    'cantidad_ejercicios' => $leccion->cantidad_ejercicios,
+                    'modulo' => [
+                        'id' => $modulo->id,
+                        'titulo' => $modulo->titulo,
+                        'slug' => $modulo->slug
+                    ]
+                ],
+                'acceso_permitido' => true
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Lección o módulo no encontrado'
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Error en showByIdWithSlug: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            return response()->json([
+                'error' => 'Error al acceder a lección',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+ * Obtener navegación (anterior/siguiente) de una lección
+ */
+public function navegacion($moduloSlug, $leccionId)
+{
+    try {
+        // Buscar el módulo por slug
+        $modulo = Modulo::where('slug', $moduloSlug)
+            ->where('estado', 'activo')
+            ->firstOrFail();
+
+        // Buscar la lección actual
+        $leccionActual = Leccion::where('id', $leccionId)
+            ->where('modulo_id', $modulo->id)
+            ->where('estado', 'activo')
+            ->firstOrFail();
+
+        // Buscar lección anterior (orden - 1)
+        $leccionAnterior = Leccion::where('modulo_id', $modulo->id)
+            ->where('orden', $leccionActual->orden - 1)
+            ->where('estado', 'activo')
+            ->first();
+
+        // Buscar lección siguiente (orden + 1)
+        $leccionSiguiente = Leccion::where('modulo_id', $modulo->id)
+            ->where('orden', $leccionActual->orden + 1)
+            ->where('estado', 'activo')
+            ->first();
+
+        return response()->json([
+            'anterior' => $leccionAnterior ? [
+                'id' => $leccionAnterior->id,
+                'titulo' => $leccionAnterior->titulo,
+                'slug' => $leccionAnterior->slug,
+                'orden' => $leccionAnterior->orden
+            ] : null,
+            'siguiente' => $leccionSiguiente ? [
+                'id' => $leccionSiguiente->id,
+                'titulo' => $leccionSiguiente->titulo,
+                'slug' => $leccionSiguiente->slug,
+                'orden' => $leccionSiguiente->orden
+            ] : null
+        ]);
+
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json([
+            'error' => 'Módulo o lección no encontrada'
+        ], 404);
+
+    } catch (\Exception $e) {
+        \Log::error('Error en navegacion: ' . $e->getMessage());
+
+        return response()->json([
+            'error' => 'Error al obtener navegación',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+/**
+ * Marcar lección como vista
+ */
+public function marcarComoVista($moduloSlug, $leccionId)
+{
+    try {
+        $usuarioId = Auth::id();
+
+        // Buscar el módulo
+        $modulo = Modulo::where('slug', $moduloSlug)
+            ->where('estado', 'activo')
+            ->firstOrFail();
+
+        // Buscar la lección
+        $leccion = Leccion::where('id', $leccionId)
+            ->where('modulo_id', $modulo->id)
+            ->where('estado', 'activo')
+            ->firstOrFail();
+
+        // Registrar o actualizar progreso
+        $progreso = ProgresoLeccion::updateOrCreate(
+            [
+                'usuario_id' => $usuarioId,
+                'leccion_id' => $leccion->id
+            ],
+            [
+                'vista' => true,
+                'fecha_vista' => now()
+            ]
+        );
+
+        \Log::info('Lección marcada como vista', [
+            'usuario_id' => $usuarioId,
+            'leccion_id' => $leccion->id
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lección marcada como vista',
+            'progreso' => [
+                'leccion_id' => $leccion->id,
+                'vista' => true,
+                'fecha_vista' => $progreso->fecha_vista
+            ]
+        ]);
+
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json([
+            'error' => 'Módulo o lección no encontrada'
+        ], 404);
+
+    } catch (\Exception $e) {
+        \Log::error('Error al marcar lección como vista: ' . $e->getMessage());
+
+        return response()->json([
+            'error' => 'Error al marcar lección',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
 }
