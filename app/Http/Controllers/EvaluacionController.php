@@ -107,7 +107,6 @@ class EvaluacionController extends Controller
                     })
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -158,13 +157,23 @@ class EvaluacionController extends Controller
                     ->sortByDesc('created_at')
                     ->first();
 
-                if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                    $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$horasRestantes} horas.",
-                        'code' => 'LIMITE_INTENTOS_ALCANZADO'
-                    ], 429);
+                if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                    $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                    if ($horasTranscurridas < 24) {
+                        $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                        $horasRestantes = floor($segundosRestantes / 3600);
+                        $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                        $segsRestantes = floor($segundosRestantes % 60);
+
+                        $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segsRestantes}s";
+
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$tiempoFormateado}.",
+                            'code' => 'LIMITE_INTENTOS_ALCANZADO'
+                        ], 429);
+                    }
                 }
             }
 
@@ -231,7 +240,6 @@ class EvaluacionController extends Controller
                     'intento_numero' => $intento->intento_numero
                 ]
             ], 201);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -344,7 +352,6 @@ class EvaluacionController extends Controller
                     'preguntas' => $preguntas
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -466,7 +473,6 @@ class EvaluacionController extends Controller
                     'mensaje' => $esCorrecta ? 'Respuesta correcta' : 'Respuesta guardada'
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -481,9 +487,9 @@ class EvaluacionController extends Controller
      * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
      */
     /**
- * Finalizar evaluación
- * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
- */
+     * Finalizar evaluación
+     * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
+     */
     public function finalizarEvaluacion(Request $request, $moduloId, $intentoId)
     {
         try {
@@ -552,7 +558,6 @@ class EvaluacionController extends Controller
                 'success' => true,
                 'data' => $responseData
             ], 200);
-
         } catch (\Exception $e) {
             \Log::error('Error al finalizar evaluación', [
                 'error' => $e->getMessage(),
@@ -655,7 +660,6 @@ class EvaluacionController extends Controller
                     'recomendaciones' => $this->getRecomendacionesResultado($intento)
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -712,7 +716,6 @@ class EvaluacionController extends Controller
                     'intentos' => $intentos
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -761,12 +764,22 @@ class EvaluacionController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                return [
-                    'puede' => false,
-                    'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
-                ];
+            if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                if ($horasTranscurridas < 24) {
+                    $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                    $horasRestantes = floor($segundosRestantes / 3600);
+                    $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                    $segundosRestantesDisplay = floor($segundosRestantes % 60);
+
+                    $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segundosRestantesDisplay}s";
+
+                    return [
+                        'puede' => false,
+                        'mensaje' => "Podrás intentar nuevamente en {$tiempoFormateado}"
+                    ];
+                }
             }
         }
 

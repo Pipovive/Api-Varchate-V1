@@ -202,15 +202,18 @@ class AuthController extends Controller
             'token' => 'required|string'
         ]);
 
+        \Log::info('Token recibido:', ['token' => substr($request->token, 0, 50)]);  // ← aquí
+
         try {
             $googleUser = Socialite::driver('google')
                 ->userFromToken($request->token);
         } catch (Exception $e) {
+            \Log::error('Error Socialite:', ['message' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Token de Google inválido'
             ], 401);
         }
-
+        \Log::info('Token recibido:', ['token' => $request->token]);
         $usuario = Usuario::where('email', $googleUser->getEmail())->first();
 
         if (!$usuario) {
