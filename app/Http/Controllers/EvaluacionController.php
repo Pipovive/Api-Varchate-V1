@@ -504,12 +504,12 @@ class EvaluacionController extends Controller
             $intento->calcularResultado();
 
             // ===== ¡IMPORTANTE! LLAMAR AL PROGRESO CONTROLLER =====
-            // Esto actualiza automáticamente la base de datos
+            // Marcar la evaluación como aprobada (si aplica) y luego recalcular
             $progresoController = new ProgresoController();
-            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
-
-            // También llamar explícitamente al método de evaluación aprobada
+            // Primero marcar evaluación aprobada para que el recálculo lo considere
             $progresoController->actualizarEvaluacionAprobada($moduloId);
+            // Luego recalcular el progreso del módulo (esto actualizará porcentaje y certificado)
+            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
 
             // Verificar si aprobó
             $aprobado = $intento->aprobado;
