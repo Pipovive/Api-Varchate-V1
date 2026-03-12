@@ -50,12 +50,12 @@ class AuthController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-
-
-        $usuario->sendEmailVerificationNotification();
-        //Creacion de token de sacnctum
-
-
+        // ← Try/catch para que el registro no falle si el correo falla
+        try {
+            $usuario->sendEmailVerificationNotification();
+        } catch (\Exception $e) {
+            \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Se envió un correo a tu email para comprobar que eres tú',
