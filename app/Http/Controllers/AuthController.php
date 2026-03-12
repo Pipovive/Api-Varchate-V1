@@ -18,49 +18,50 @@ use function Symfony\Component\String\u;
 class AuthController extends Controller
 {
     public function register(Request $request)
-    {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'email' => 'required|email|unique:usuarios',
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8)
-                    ->mixedCase()
-                    ->numbers()
-            ],
-            'terms_accepted' => 'required|boolean'
-        ]);
+{
+    $request->validate([
+        'nombre' => 'required|string|max:255',
+        'email' => 'required|email|unique:usuarios',
+        'password' => [
+            'required',
+            'confirmed',
+            Password::min(8)
+                ->mixedCase()
+                ->numbers()
+        ],
+        'terms_accepted' => 'required|boolean'
+    ]);
 
-        $usuario = Usuario::create([
-            'nombre' => $request->nombre,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'terms_accepted' => true,
-            'terms_accepted_at' => now(),
-            'avatar_id' => 1,
-        ]);
+    $usuario = Usuario::create([
+        'nombre' => $request->nombre,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+        'terms_accepted' => true,
+        'terms_accepted_at' => now(),
+        'avatar_id' => 1,
+    ]);
 
-        UserAttempt::create([
-            'user_id' => $usuario->id,
-            'email' => $usuario->email,
-            'action' => 'register',
-            'success' => true,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+    $usuario->markEmailAsVerified(); // ← auto-verificar al registrarse
 
-        // ← Try/catch para que el registro no falle si el correo falla
-        try {
-            $usuario->sendEmailVerificationNotification();
-        } catch (\Exception $e) {
-            \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
-        }
+    UserAttempt::create([
+        'user_id' => $usuario->id,
+        'email' => $usuario->email,
+        'action' => 'register',
+        'success' => true,
+        'ip' => $request->ip(),
+        'user_agent' => $request->userAgent(),
+    ]);
 
-        return response()->json([
-            'message' => 'Se envió un correo a tu email para comprobar que eres tú',
-        ], 201);
+    try {
+        $usuario->sendEmailVerificationNotification();
+    } catch (\Exception $e) {
+        \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
     }
+
+    return response()->json([
+        'message' => 'Se envió un correo a tu email para comprobar que eres tú',
+    ], 201);
+}
 
 
     public function recoverPassword(Request $request)
@@ -148,6 +149,8 @@ class AuthController extends Controller
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
+
             return response()->json([
                 'message' => 'Credenciales incorrectas'
             ], 401);
