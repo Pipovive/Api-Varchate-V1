@@ -18,6 +18,7 @@ class UserController extends Controller
             'nombre' => $request->user()->nombre,
             'email' => $request->user()->email,
             'avatar_id' => $request->user()->avatar_id,
+            'proveedor_auth' => $request->user()->proveedor_auth, // agregar esto
         ]);
     }
 
