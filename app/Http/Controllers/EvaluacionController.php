@@ -159,7 +159,7 @@ class EvaluacionController extends Controller
                     ->first();
 
                 if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                    $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
+                    $horasRestantes = 24 - (int)now()->diffInHours($ultimoIntento->created_at);
                     return response()->json([
                         'success' => false,
                         'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$horasRestantes} horas.",
