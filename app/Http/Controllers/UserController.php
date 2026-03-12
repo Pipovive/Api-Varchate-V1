@@ -13,11 +13,13 @@ class UserController extends Controller
      */
     public function me(Request $request)
     {
+        $user = $request->user();
         return response()->json([
-            'id' => $request->user()->id,
-            'nombre' => $request->user()->nombre,
-            'email' => $request->user()->email,
-            'avatar_id' => $request->user()->avatar_id,
+            'id' => $user->id,
+            'nombre' => $user->nombre,
+            'name' => $user->nombre,
+            'email' => $user->email,
+            'avatar_id' => $user->avatar_id,
         ]);
     }
 
@@ -27,16 +29,26 @@ class UserController extends Controller
     public function updateProfile(Request $request)
     {
         $request->validate([
-            'nombre' => 'required|string|max:255',
+            'nombre' => 'sometimes|string|max:255', // opcional: permite actualizar solo avatar
+            'name' => 'sometimes|string|max:255', // alias enviado por el JS
             'avatar_id' => 'nullable|exists:avatars,id',
         ]);
 
         $user = $request->user();
 
-        $user->update([
-            'nombre' => $request->nombre,
+        // Aceptar 'nombre' o 'name' (alias enviado por el JS del frontend)
+        $nuevoNombre = $request->nombre ?? $request->name ?? null;
+
+        $updateData = [
             'avatar_id' => $request->avatar_id ?? $user->avatar_id,
-        ]);
+        ];
+
+        // Solo actualizar nombre si se proporcionó uno
+        if (!empty($nuevoNombre)) {
+            $updateData['nombre'] = $nuevoNombre;
+        }
+
+        $user->update($updateData);
 
         return response()->json([
             'message' => 'Perfil actualizado correctamente',

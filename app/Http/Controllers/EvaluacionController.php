@@ -503,21 +503,25 @@ class EvaluacionController extends Controller
             // Calcular resultados
             $intento->calcularResultado();
 
-            // ===== ¡IMPORTANTE! LLAMAR AL PROGRESO CONTROLLER =====
-            // Esto actualiza automáticamente la base de datos
-            $progresoController = new ProgresoController();
-            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
-
-            // También llamar explícitamente al método de evaluación aprobada
-            $progresoController->actualizarEvaluacionAprobada($moduloId);
-
-            // Verificar si aprobó
+            // ===== ACTUALIZAR PROGRESO DEL MÓDULO DIRECTAMENTE =====
             $aprobado = $intento->aprobado;
 
             // Verificar progreso actualizado
             $progresoActualizado = \App\Models\ProgresoModulo::where('usuario_id', $usuario->id)
                 ->where('modulo_id', $moduloId)
                 ->first();
+
+            if ($progresoActualizado) {
+                $updateData = ['fecha_ultimo_progreso' => now()];
+
+                if ($aprobado) {
+                    $updateData['evaluacion_aprobada'] = true;
+                    $updateData['certificado_disponible'] = true;
+                    $updateData['porcentaje_completado'] = 100.00;
+                }
+
+                $progresoActualizado->update($updateData);
+            }
 
             $responseData = [
                 'intento_id' => $intento->id,
@@ -540,7 +544,7 @@ class EvaluacionController extends Controller
             // Si aprobó, agregar información de certificación
             if ($aprobado && $progresoActualizado) {
                 $responseData['certificacion'] = [
-                    'disponible' => $progresoActualizado->certificado_disponible,
+                    'disponible' => (bool) $progresoActualizado->certificado_disponible,
                     'modulo_id' => $moduloId,
                     'mensaje' => $progresoActualizado->certificado_disponible
                         ? '¡Ya puedes generar tu certificado!'
