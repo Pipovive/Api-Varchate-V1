@@ -766,7 +766,7 @@ class EvaluacionController extends Controller
                 ->first();
 
             if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
+                $horasRestantes = 24 - (int)now()->diffInHours($ultimoIntento->created_at);
                 return [
                     'puede' => false,
                     'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
