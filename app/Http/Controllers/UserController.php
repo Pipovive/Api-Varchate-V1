@@ -32,6 +32,10 @@ class UserController extends Controller
             'nombre' => 'sometimes|string|max:255', // opcional: permite actualizar solo avatar
             'name' => 'sometimes|string|max:255', // alias enviado por el JS
             'avatar_id' => 'nullable|exists:avatars,id',
+        ], [
+            'nombre.string' => 'El nombre debe ser una cadena de texto.',
+            'nombre.max' => 'El nombre no puede exceder los 255 caracteres.',
+            'avatar_id.exists' => 'El avatar seleccionado no es válido.',
         ]);
 
         $user = $request->user();
@@ -71,6 +75,11 @@ class UserController extends Controller
                 'confirmed',
                 Password::min(8)->mixedCase()->numbers(),
             ],
+        ], [
+            'current_password.required' => 'La contraseña actual es obligatoria.',
+            'password.required' => 'La nueva contraseña es obligatoria.',
+            'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
         ]);
 
         $user = $request->user();
