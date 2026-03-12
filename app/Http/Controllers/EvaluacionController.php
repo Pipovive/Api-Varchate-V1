@@ -159,7 +159,11 @@ class EvaluacionController extends Controller
                     ->first();
 
                 if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                    $horasRestantes = 24 - (int)now()->diffInHours($ultimoIntento->created_at);
+                    $horasTrabajadas = (int)now()->diffInHours($ultimoIntento->created_at);
+                    $horasRestantes = 24 - $horasTrabajadas;
+                    // Limitar a 24 como máximo en caso de diferencias de zona horaria
+                    if ($horasRestantes > 24) $horasRestantes = 24;
+                    
                     return response()->json([
                         'success' => false,
                         'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$horasRestantes} horas.",
@@ -766,7 +770,10 @@ class EvaluacionController extends Controller
                 ->first();
 
             if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasRestantes = 24 - (int)now()->diffInHours($ultimoIntento->created_at);
+                $horasTrabajadas = (int)now()->diffInHours($ultimoIntento->created_at);
+                $horasRestantes = 24 - $horasTrabajadas;
+                if ($horasRestantes > 24) $horasRestantes = 24;
+
                 return [
                     'puede' => false,
                     'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
