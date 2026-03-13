@@ -9,6 +9,8 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Avatar;
 use App\Models\UserAttempt;
+use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
 use App\Notifications\ResetPasswordCustom;
 use Illuminate\Contracts\Auth\CanResetPassword;
 
@@ -33,6 +35,7 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'estado'      // 👈 AGREGADO
     ];
 
+
     protected $hidden = [
         'password',
         'token_verificacion',
@@ -45,6 +48,8 @@ class Usuario extends Authenticatable implements MustVerifyEmail
     ];
 
     // 👇 CAMBIADO DE protected A public
+
+
     public function avatar()
     {
         return $this->belongsTo(Avatar::class);
