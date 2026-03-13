@@ -733,7 +733,7 @@ class EvaluacionController extends Controller
     /**
      * Métodos helper privados
      */
-    private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
+private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
     {
         // Si ya aprobó
         $yaAprobo = IntentoEvaluacion::where('usuario_id', $usuario->id)
@@ -769,15 +769,22 @@ class EvaluacionController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasTrabajadas = (int)now()->diffInHours($ultimoIntento->created_at);
-                $horasRestantes = 24 - $horasTrabajadas;
-                if ($horasRestantes > 24) $horasRestantes = 24;
+            if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
 
-                return [
-                    'puede' => false,
-                    'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
-                ];
+                if ($horasTranscurridas < 24) {
+                    $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                    $horasRestantes = floor($segundosRestantes / 3600);
+                    $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                    $segundosRestantesDisplay = floor($segundosRestantes % 60);
+
+                    $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segundosRestantesDisplay}s";
+
+                    return [
+                        'puede' => false,
+                        'mensaje' => "Podrás intentar nuevamente en {$tiempoFormateado}"
+                    ];
+                }
             }
         }
 
