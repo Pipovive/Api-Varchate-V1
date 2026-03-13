@@ -197,42 +197,40 @@ class AuthController extends Controller
     }
 
     public function loginWithGoogle(Request $request)
-    {
-        $request->validate([
-            'token' => 'required|string'
-        ]);
+{
+    $request->validate([
+        'id_token' => 'required|string'   // ← igual que el frontend
+    ]);
 
-        try {
-            $googleUser = Socialite::driver('google')
-                ->userFromToken($request->token);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Token de Google inválido'
-            ], 401);
-        }
-
-        $usuario = Usuario::where('email', $googleUser->getEmail())->first();
-
-        if (!$usuario) {
-            $usuario = Usuario::create([
-                'nombre' => $googleUser->getName(),
-                'email' => $googleUser->getEmail(),
-                'email_verified_at' => now(),
-                'proveedor_auth' => 'google',
-                'auth_provider_id' => $googleUser->getId(),
-                'password' => null,
-            ]);
-        }
-
-        $token = $usuario->createToken('google-auth')->plainTextToken;
-
+    try {
+        $googleUser = Socialite::driver('google')
+            ->stateless()                  // ← necesario en APIs
+            ->userFromToken($request->id_token);
+    } catch (\Exception $e) {
         return response()->json([
-            'message' => 'Login con Google exitoso',
-            'user' => $usuario,
-            'access_token' => $token,
-            'token_type' => 'Bearer'
-        ]);
+            'message' => 'Token de Google inválido'
+        ], 401);
     }
+
+    $usuario = Usuario::updateOrCreate(
+        ['email' => $googleUser->getEmail()],
+        [
+            'nombre'            => $googleUser->getName(),
+            'email_verified_at' => now(),
+            'proveedor_auth'    => 'google',
+            'auth_provider_id'  => $googleUser->getId(),
+            'password'          => null,
+            'avatar_id'         => 1, // ← ID del avatar por defecto
+        ]
+    );
+
+    return response()->json([
+        'message'      => 'Login con Google exitoso',
+        'user'         => $usuario,
+        'access_token' => $usuario->createToken('google-auth')->plainTextToken,
+        'token_type'   => 'Bearer'
+    ]);
+}
 
 
 
