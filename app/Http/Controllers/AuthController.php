@@ -120,9 +120,8 @@ class AuthController extends Controller
                     'user_id' => $user->id,
                     'email' => $user->email,
                     'action' => 'password_reset',
-                    'status' => 'success',
                     'success' => true,
-                    'ip_address' => $request->ip(),
+                    'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
             }
@@ -149,45 +148,80 @@ class AuthController extends Controller
         // 1. Buscar usuario
         $usuario = Usuario::where('email', $request->email)->first();
 
-        // 2. Validar existencia y contraseña
-        if (!$usuario || !Hash::check($request->password, $usuario->password)) {
+        // 2. Si no existe
+        if (!$usuario) {
+
             UserAttempt::create([
                 'email' => $request->email,
                 'action' => 'login',
-                'status' => 'failed',
                 'success' => false,
-                'ip_address' => $request->ip(),
+                'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
             return response()->json([
                 'message' => 'Credenciales incorrectas'
             ], 401);
         }
 
+        // 3. Si la cuenta fue creada con Google y no tiene contraseña
+        if (!$usuario->password) {
+
+            UserAttempt::create([
+                'user_id' => $usuario->id,
+                'email' => $request->email,
+                'action' => 'login_google_required',
+                'success' => false,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return response()->json([
+                'message' => 'Esta cuenta fue registrada con Google. Inicia sesión con Google o crea una contraseña desde tu perfil.'
+            ], 401);
+        }
+
+        // 4. Validar contraseña
+        if (!Hash::check($request->password, $usuario->password)) {
+
+            UserAttempt::create([
+                'user_id' => $usuario->id,
+                'email' => $request->email,
+                'action' => 'login',
+                'success' => false,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return response()->json([
+                'message' => 'Credenciales incorrectas. Verifica tu correo y contraseña'
+            ], 401);
+        }
+
         UserAttempt::create([
+            'user_id' => $usuario->id,
             'email' => $request->email,
             'action' => 'login',
-            'status' => 'succes',
             'success' => true,
-            'ip_address' => $request->ip(),
+            'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        // 3. Validar estado
+        // 5. Validar estado
         if ($usuario->estado !== 'activo') {
             return response()->json([
                 'message' => 'Usuario inactivo'
             ], 403);
         }
 
-        // 4. Validar email verificado
+        // 6. Validar email verificado
         if (!$usuario->hasVerifiedEmail()) {
             return response()->json([
                 'message' => 'Debes verificar tu correo electrónico antes de iniciar sesión'
             ], 403);
         }
 
-        // 5. Crear token
+        // 7. Crear token
         $token = $usuario->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -208,40 +242,58 @@ class AuthController extends Controller
     }
 
     public function loginWithGoogle(Request $request)
-{
-    $request->validate([
-        'id_token' => 'required|string'   // ← igual que el frontend
-    ]);
+    {
+        $request->validate([
+            'id_token' => 'required|string'
+        ]);
 
-    try {
-        $googleUser = Socialite::driver('google')
-            ->stateless()                  // ← necesario en APIs
-            ->userFromToken($request->id_token);
-    } catch (\Exception $e) {
+        try {
+            $googleUser = Socialite::driver('google')
+                ->stateless()
+                ->userFromToken($request->id_token);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Token de Google inválido'
+            ], 401);
+        }
+
+        // Buscar usuario por email
+        $usuario = Usuario::where('email', $googleUser->getEmail())->first();
+
+        if (!$usuario) {
+
+            // Crear usuario si no existe
+            $usuario = Usuario::create([
+                'nombre' => $googleUser->getName(),
+                'email' => $googleUser->getEmail(),
+                'email_verified_at' => now(),
+                'proveedor_auth' => 'google',
+                'auth_provider_id' => $googleUser->getId(),
+                'avatar_id' => 1
+            ]);
+
+        } else {
+
+            // Si ya existe, solo vincular Google si aún no está vinculado
+            if (!$usuario->auth_provider_id) {
+                $usuario->update([
+                    'auth_provider_id' => $googleUser->getId(),
+                    'proveedor_auth' => 'google'
+                ]);
+            }
+
+        }
+
+        // Crear token
+        $token = $usuario->createToken('google-auth')->plainTextToken;
+
         return response()->json([
-            'message' => 'Token de Google inválido'
-        ], 401);
+            'message' => 'Login con Google exitoso',
+            'user' => $usuario,
+            'access_token' => $token,
+            'token_type' => 'Bearer'
+        ]);
     }
-
-    $usuario = Usuario::updateOrCreate(
-        ['email' => $googleUser->getEmail()],
-        [
-            'nombre'            => $googleUser->getName(),
-            'email_verified_at' => now(),
-            'proveedor_auth'    => 'google',
-            'auth_provider_id'  => $googleUser->getId(),
-            'password'          => null,
-            'avatar_id'         => 1, // ← ID del avatar por defecto
-        ]
-    );
-
-    return response()->json([
-        'message'      => 'Login con Google exitoso',
-        'user'         => $usuario,
-        'access_token' => $usuario->createToken('google-auth')->plainTextToken,
-        'token_type'   => 'Bearer'
-    ]);
-}
 
 
 

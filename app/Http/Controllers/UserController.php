@@ -20,6 +20,7 @@ class UserController extends Controller
             'name' => $user->nombre,
             'email' => $user->email,
             'avatar_id' => $user->avatar_id,
+            'has_password' => !empty($user->password),
         ]);
     }
 
@@ -68,30 +69,46 @@ class UserController extends Controller
      */
     public function updatePassword(Request $request)
     {
-        $request->validate([
-            'current_password' => 'required|string',
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8)->mixedCase()->numbers(),
-            ],
-        ], [
-            'current_password.required' => 'La contraseña actual es obligatoria.',
-            'password.required' => 'La nueva contraseña es obligatoria.',
-            'password.confirmed' => 'La confirmación de la contraseña no coincide.',
-            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
-        ]);
-
         $user = $request->user();
 
-        // Verificar contraseña actual
-        if (!Hash::check($request->current_password, $user->password)) {
-            return response()->json([
-                'message' => 'La contraseña actual no es correcta',
-            ], 422);
+        // 1. Si el usuario ya tiene contraseña (registro manual)
+        if ($user->password) {
+            $request->validate([
+                'current_password' => 'required|string',
+                'password' => [
+                    'required',
+                    'confirmed',
+                    Password::min(8)->mixedCase()->numbers(),
+                ],
+            ], [
+                'current_password.required' => 'La contraseña actual es obligatoria.',
+                'password.required' => 'La nueva contraseña es obligatoria.',
+                'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+                'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            ]);
+
+            // Verificar que la contraseña actual sea correcta
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'message' => 'La contraseña actual no es correcta',
+                ], 422);
+            }
+        } else {
+            // 2. Si el usuario fue registrado con Google (no tiene contraseña)
+            $request->validate([
+                'password' => [
+                    'required',
+                    'confirmed',
+                    Password::min(8)->mixedCase()->numbers(),
+                ],
+            ], [
+                'password.required' => 'La nueva contraseña es obligatoria.',
+                'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+                'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            ]);
         }
 
-        // Guardar nueva contraseña
+        // 3. Guardar la nueva contraseña (sirve para ambos casos)
         $user->update([
             'password' => Hash::make($request->password),
         ]);
