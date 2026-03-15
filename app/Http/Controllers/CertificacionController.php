@@ -9,7 +9,7 @@ use App\Models\IntentoEvaluacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\Drivers\Imagick\Driver;
 
 class CertificacionController extends Controller
 {
