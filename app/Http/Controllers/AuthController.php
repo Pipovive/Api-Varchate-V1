@@ -18,18 +18,18 @@ use function Symfony\Component\String\u;
 class AuthController extends Controller
 {
     public function register(Request $request)
-{
-    $request->validate([
-        'nombre' => 'required|string|max:255',
-        'email' => 'required|email|unique:usuarios',
-        'password' => [
-            'required',
-            'confirmed',
-            Password::min(8)
-                ->mixedCase()
-                ->numbers()
-        ],
-        'terms_accepted' => 'required|boolean'
+    {
+        $request->validate([
+            'nombre' => 'required|string|max:255',
+            'email' => 'required|email|unique:usuarios',
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+            ],
+            'terms_accepted' => 'required|boolean'
         ], [
             'nombre.required' => 'El nombre es obligatorio.',
             'nombre.string' => 'El nombre debe ser una cadena de texto.',
@@ -41,38 +41,38 @@ class AuthController extends Controller
             'password.confirmed' => 'Las contraseñas no coinciden.',
             'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'terms_accepted.required' => 'Debes aceptar los términos y condiciones.',
-    ]);
+        ]);
 
-    $usuario = Usuario::create([
-        'nombre' => $request->nombre,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-        'terms_accepted' => true,
-        'terms_accepted_at' => now(),
-        'avatar_id' => 1,
-    ]);
+        $usuario = Usuario::create([
+            'nombre' => $request->nombre,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'terms_accepted' => true,
+            'terms_accepted_at' => now(),
+            'avatar_id' => 1,
+        ]);
 
-    $usuario->markEmailAsVerified(); // ← auto-verificar al registrarse
+        $usuario->markEmailAsVerified(); // ← auto-verificar al registrarse
 
-    UserAttempt::create([
-        'user_id' => $usuario->id,
-        'email' => $usuario->email,
-        'action' => 'register',
-        'success' => true,
-        'ip' => $request->ip(),
-        'user_agent' => $request->userAgent(),
-    ]);
+        UserAttempt::create([
+            'user_id' => $usuario->id,
+            'email' => $usuario->email,
+            'action' => 'register',
+            'success' => true,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
-    try {
-        $usuario->sendEmailVerificationNotification();
-    } catch (\Exception $e) {
-        \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+        try {
+            $usuario->sendEmailVerificationNotification();
+        } catch (\Exception $e) {
+            \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Se envió un correo a tu email para comprobar que eres tú',
+        ], 201);
     }
-
-    return response()->json([
-        'message' => 'Se envió un correo a tu email para comprobar que eres tú',
-    ], 201);
-}
 
 
     public function recoverPassword(Request $request)
@@ -274,7 +274,6 @@ class AuthController extends Controller
                 'auth_provider_id' => $googleUser->getId(),
                 'avatar_id' => 1
             ]);
-
         } else {
 
             // Si ya existe, solo vincular Google si aún no está vinculado
@@ -284,7 +283,6 @@ class AuthController extends Controller
                     'proveedor_auth' => 'google'
                 ]);
             }
-
         }
 
         // Crear token
@@ -324,16 +322,16 @@ class AuthController extends Controller
 
     public function deleteAccount(Request $request)
     {
-        $request->validate([
-            'password' => 'required|string',
-        ]);
+        $user = $request->user();
 
-        $user = $request->user(); // usuario autenticado
+        if ($user->proveedor_auth !== 'google') {
+            $request->validate(['password' => 'required|string']);
 
-        if (!Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Contraseña incorrecta'
-            ], 403);
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'message' => 'Contraseña incorrecta'
+                ], 403);
+            }
         }
 
         $user->delete();
