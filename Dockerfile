@@ -1,5 +1,9 @@
 FROM dunglas/frankenphp:php8.2.30-bookworm
 
+# Instalar composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Instalar GD y dependencias
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
