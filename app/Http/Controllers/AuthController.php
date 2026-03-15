@@ -52,8 +52,6 @@ class AuthController extends Controller
             'avatar_id' => 1,
         ]);
 
-        $usuario->markEmailAsVerified(); // ← auto-verificar al registrarse
-
         UserAttempt::create([
             'user_id' => $usuario->id,
             'email' => $usuario->email,
