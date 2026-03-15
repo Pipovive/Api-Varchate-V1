@@ -350,9 +350,9 @@ class CertificacionController extends Controller
                             'descargado' => (bool) $certificacion->descargado
                         ],
                         'urls' => [
-                            'ver' => url("/api/certificaciones/{$certificacion->codigo_certificado}/ver"),
-                            'descargar' => url("/api/certificaciones/{$certificacion->codigo_certificado}/descargar"),
-                            'verificar' => url("/api/certificaciones/{$certificacion->codigo_certificado}/verificar")
+                            'ver' => url("/certificaciones/{$certificacion->codigo_certificado}/ver"),
+                            'descargar' => url("/certificaciones/{$certificacion->codigo_certificado}/descargar"),
+                            'verificar' => url("/certificaciones/{$certificacion->codigo_certificado}/verificar")
                         ]
                     ];
                 });
