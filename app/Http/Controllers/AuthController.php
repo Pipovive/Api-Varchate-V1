@@ -65,6 +65,9 @@ class AuthController extends Controller
             $usuario->sendEmailVerificationNotification();
         } catch (\Exception $e) {
             \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Usuario registrado, pero hubo un error enviando el correo: ' . $e->getMessage()
+            ], 500);
         }
 
         return response()->json([
