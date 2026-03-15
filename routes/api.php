@@ -214,6 +214,12 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin')->group(function
     Route::delete('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'destroy']);
     Route::post('/modulos/reorder', [App\Http\Controllers\Admin\ModuloController::class, 'reorder']);
 
+    // Gestión de Categorías de Módulos
+    Route::get('/categorias-modulos', [App\Http\Controllers\Admin\ModuloController::class, 'listarCategorias']);
+    Route::post('/categorias-modulos', [App\Http\Controllers\Admin\ModuloController::class, 'crearCategoria']);
+    Route::put('/categorias-modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'actualizarCategoria']);
+    Route::delete('/categorias-modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'eliminarCategoria']);
+
     // Gestión de Lecciones (dentro de módulos)
     Route::get('/modulos/{moduloId}/lecciones', [App\Http\Controllers\Admin\LeccionController::class, 'index']);
     Route::post('/modulos/{moduloId}/lecciones', [App\Http\Controllers\Admin\LeccionController::class, 'store']);
