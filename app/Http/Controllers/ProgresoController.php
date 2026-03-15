@@ -561,7 +561,7 @@ class ProgresoController extends Controller
         ->count();
     }
 
-    private function actualizarProgresoModulo($moduloId, $usuarioId)
+    public function actualizarProgresoModulo($moduloId, $usuarioId)
     {
         $totalLecciones = Leccion::where('modulo_id', $moduloId)
             ->where('estado', 'activo')

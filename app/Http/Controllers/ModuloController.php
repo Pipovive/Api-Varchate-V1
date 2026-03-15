@@ -14,23 +14,27 @@ class ModuloController extends Controller
 {
     public function index()
     {
-        $usuario = Auth::user();
+        return Modulo::where('estado', 'activo')
+            ->orderBy('orden_global')
+            ->get();
 
-        // Verificar si es la primera vez del usuario
-        $tieneProgreso = ProgresoModulo::where('usuario_id', $usuario->id)->exists();
+        // $usuario = Auth::user();
 
-        if (!$tieneProgreso) {
-            // Solo mostrar el primer módulo (Introducción a HTML)
-            return Modulo::where('estado', 'activo')
-                ->where('slug', 'introduccion-a-html')
-                ->orderBy('orden_global')
-                ->get();
-        } else {
-            // Mostrar todos los módulos activos
-            return Modulo::where('estado', 'activo')
-                ->orderBy('orden_global')
-                ->get();
-        }
+        // // Verificar si es la primera vez del usuario
+        // $tieneProgreso = ProgresoModulo::where('usuario_id', $usuario->id)->exists();
+
+        // if (!$tieneProgreso) {
+        //     // Solo mostrar el primer módulo (Introducción a HTML)
+        //     return Modulo::where('estado', 'activo')
+        //         ->where('slug', 'introduccion-a-html')
+        //         ->orderBy('orden_global')
+        //         ->get();
+        // } else {
+        //     // Mostrar todos los módulos activos
+        //     return Modulo::where('estado', 'activo')
+        //         ->orderBy('orden_global')
+        //         ->get();
+        // }
     }
 
     /**
@@ -119,7 +123,6 @@ class ModuloController extends Controller
                     'evaluacion_aprobada' => false
                 ]
             ]);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'error' => 'Módulo no encontrado'

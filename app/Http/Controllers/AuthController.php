@@ -18,18 +18,18 @@ use function Symfony\Component\String\u;
 class AuthController extends Controller
 {
     public function register(Request $request)
-    {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'email' => 'required|email|unique:usuarios',
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8)
-                    ->mixedCase()
-                    ->numbers()
-            ],
-            'terms_accepted' => 'required|boolean'
+{
+    $request->validate([
+        'nombre' => 'required|string|max:255',
+        'email' => 'required|email|unique:usuarios',
+        'password' => [
+            'required',
+            'confirmed',
+            Password::min(8)
+                ->mixedCase()
+                ->numbers()
+        ],
+        'terms_accepted' => 'required|boolean'
         ], [
             'nombre.required' => 'El nombre es obligatorio.',
             'nombre.string' => 'El nombre debe ser una cadena de texto.',
@@ -41,37 +41,38 @@ class AuthController extends Controller
             'password.confirmed' => 'Las contraseñas no coinciden.',
             'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'terms_accepted.required' => 'Debes aceptar los términos y condiciones.',
-        ]);
+    ]);
 
-        $usuario = Usuario::create([
-            'nombre' => $request->nombre,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'terms_accepted' => true,
-            'terms_accepted_at' => now(),
-            'avatar_id' => 1,
-        ]);
+    $usuario = Usuario::create([
+        'nombre' => $request->nombre,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+        'terms_accepted' => true,
+        'terms_accepted_at' => now(),
+        'avatar_id' => 1,
+    ]);
 
-        UserAttempt::create([
-            'user_id' => $usuario->id,
-            'email' => $usuario->email,
-            'action' => 'register',
-            'success' => true,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+    $usuario->markEmailAsVerified(); // ← auto-verificar al registrarse
 
+    UserAttempt::create([
+        'user_id' => $usuario->id,
+        'email' => $usuario->email,
+        'action' => 'register',
+        'success' => true,
+        'ip' => $request->ip(),
+        'user_agent' => $request->userAgent(),
+    ]);
 
-
+    try {
         $usuario->sendEmailVerificationNotification();
-        //Creacion de token de sacnctum
-
-
-
-        return response()->json([
-            'message' => 'Se envió un correo a tu email para comprobar que eres tú',
-        ], 201);
+    } catch (\Exception $e) {
+        \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
     }
+
+    return response()->json([
+        'message' => 'Se envió un correo a tu email para comprobar que eres tú',
+    ], 201);
+}
 
 
     public function recoverPassword(Request $request)
@@ -246,6 +247,8 @@ class AuthController extends Controller
         $request->validate([
             'id_token' => 'required|string'
         ]);
+
+        \Log::info('Token recibido:', ['token' => substr($request->token, 0, 50)]);  // ← aquí
 
         try {
             $googleUser = Socialite::driver('google')
