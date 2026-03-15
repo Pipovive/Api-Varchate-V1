@@ -10,28 +10,30 @@ use Illuminate\Support\Facades\URL;
 class EmailVerificationController extends Controller
 {
     public function verify(Request $request, $id, $hash)
-    {
-        if (!URL::hasValidSignature($request)) {
-            return response()->json([
-                'message' => 'Link inválido o expirado'
-            ]);
-        }
+{
+    $frontendUrl = env('FRONTEND_URL', 'http://127.0.0.1:8000');
 
-        $usuario = Usuario::findOrFail($id);
-
-        if (!hash_equals(
-            sha1($usuario->getEmailForVerification()),
-            $hash
-        )) {
-            return response()->json(['message' => 'hash invalido'], 403);
-        }
-
-        if (!$usuario->hasVerifiedEmail()) {
-            $usuario->markEmailAsVerified();
-        }
-
-        return response()->json(['message' => 'Correo verificado correctamente']);
+    if (!URL::hasValidSignature($request)) {
+        return redirect("{$frontendUrl}/email-verificado?status=expired");
     }
+
+    $usuario = Usuario::findOrFail($id);
+
+    if (!hash_equals(
+        sha1($usuario->getEmailForVerification()),
+        $hash
+    )) {
+        return redirect("{$frontendUrl}/email-verificado?status=expired");
+    }
+
+    if (!$usuario->hasVerifiedEmail()) {
+        $usuario->markEmailAsVerified();
+    }
+
+    // Si ya estaba verificado
+    // (llegó aquí porque la firma era válida pero ya estaba marcado)
+    return redirect("{$frontendUrl}/email-verificado?status=success");
+}
 
     /**
      * Reenviar correo de verificación
