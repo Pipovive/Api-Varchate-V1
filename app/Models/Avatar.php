@@ -8,11 +8,9 @@ class Avatar extends Model
 {
     protected $table = 'avatars';
 
-
-
-
-
-    function usuario() {
-        return $this->hasMany(Usuario::class);
+    //  Cambiar a plural y nombre correcto
+    public function usuarios()
+    {
+        return $this->hasMany(Usuario::class, 'avatar_id');
     }
 }

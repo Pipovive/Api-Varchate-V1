@@ -107,7 +107,6 @@ class EvaluacionController extends Controller
                     })
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -158,13 +157,23 @@ class EvaluacionController extends Controller
                     ->sortByDesc('created_at')
                     ->first();
 
-                if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                    $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$horasRestantes} horas.",
-                        'code' => 'LIMITE_INTENTOS_ALCANZADO'
-                    ], 429);
+                if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                    $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                    if ($horasTranscurridas < 24) {
+                        $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                        $horasRestantes = floor($segundosRestantes / 3600);
+                        $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                        $segsRestantes = floor($segundosRestantes % 60);
+
+                        $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segsRestantes}s";
+
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$tiempoFormateado}.",
+                            'code' => 'LIMITE_INTENTOS_ALCANZADO'
+                        ], 429);
+                    }
                 }
             }
 
@@ -231,7 +240,6 @@ class EvaluacionController extends Controller
                     'intento_numero' => $intento->intento_numero
                 ]
             ], 201);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -344,7 +352,6 @@ class EvaluacionController extends Controller
                     'preguntas' => $preguntas
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -466,7 +473,6 @@ class EvaluacionController extends Controller
                     'mensaje' => $esCorrecta ? 'Respuesta correcta' : 'Respuesta guardada'
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -476,6 +482,10 @@ class EvaluacionController extends Controller
         }
     }
 
+    /**
+     * Finalizar evaluación
+     * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
+     */
     /**
      * Finalizar evaluación
      * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
@@ -499,31 +509,73 @@ class EvaluacionController extends Controller
             // Calcular resultados
             $intento->calcularResultado();
 
+            // ===== ¡IMPORTANTE! LLAMAR AL PROGRESO CONTROLLER =====
+            // Marcar la evaluación como aprobada (si aplica) y luego recalcular
+            $progresoController = new ProgresoController();
+            // Primero marcar evaluación aprobada para que el recálculo lo considere
+            $progresoController->actualizarEvaluacionAprobada($moduloId);
+            // Luego recalcular el progreso del módulo (esto actualizará porcentaje y certificado)
+            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
+
             // Verificar si aprobó
             $aprobado = $intento->aprobado;
 
+            // Verificar progreso actualizado
+            $progresoActualizado = \App\Models\ProgresoModulo::where('usuario_id', $usuario->id)
+                ->where('modulo_id', $moduloId)
+                ->first();
+
+            if ($progresoActualizado) {
+                $updateData = ['fecha_ultimo_progreso' => now()];
+
+                if ($aprobado) {
+                    $updateData['evaluacion_aprobada'] = true;
+                    $updateData['certificado_disponible'] = true;
+                    $updateData['porcentaje_completado'] = 100.00;
+                }
+
+                $progresoActualizado->update($updateData);
+            }
+
+            $responseData = [
+                'intento_id' => $intento->id,
+                'evaluacion_id' => $intento->evaluacion_id,
+                'fecha_fin' => $intento->fecha_fin,
+                'tiempo_utilizado_segundos' => $intento->tiempo_utilizado,
+                'tiempo_utilizado_minutos' => round($intento->tiempo_utilizado / 60, 2),
+                'puntuacion_total' => (float) $intento->puntuacion_total,
+                'porcentaje_obtenido' => (float) $intento->porcentaje_obtenido,
+                'preguntas_correctas' => $intento->preguntas_correctas,
+                'preguntas_incorrectas' => $intento->preguntas_incorrectas,
+                'preguntas_totales' => $intento->preguntas_correctas + $intento->preguntas_incorrectas,
+                'aprobado' => $aprobado,
+                'puntaje_minimo' => (float) $intento->evaluacion->puntaje_minimo,
+                'mensaje' => $aprobado ?
+                    '¡Felicidades! Has aprobado la evaluación.' :
+                    'No has alcanzado el puntaje mínimo. Puedes intentarlo nuevamente.'
+            ];
+
+            // Si aprobó, agregar información de certificación
+            if ($aprobado && $progresoActualizado) {
+                $responseData['certificacion'] = [
+                    'disponible' => (bool) $progresoActualizado->certificado_disponible,
+                    'modulo_id' => $moduloId,
+                    'mensaje' => $progresoActualizado->certificado_disponible
+                        ? '¡Ya puedes generar tu certificado!'
+                        : 'Completa el 100% del módulo para certificar.'
+                ];
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'intento_id' => $intento->id,
-                    'evaluacion_id' => $intento->evaluacion_id,
-                    'fecha_fin' => $intento->fecha_fin,
-                    'tiempo_utilizado_segundos' => $intento->tiempo_utilizado,
-                    'tiempo_utilizado_minutos' => round($intento->tiempo_utilizado / 60, 2),
-                    'puntuacion_total' => (float) $intento->puntuacion_total,
-                    'porcentaje_obtenido' => (float) $intento->porcentaje_obtenido,
-                    'preguntas_correctas' => $intento->preguntas_correctas,
-                    'preguntas_incorrectas' => $intento->preguntas_incorrectas,
-                    'preguntas_totales' => $intento->preguntas_correctas + $intento->preguntas_incorrectas,
-                    'aprobado' => $aprobado,
-                    'puntaje_minimo' => (float) $intento->evaluacion->puntaje_minimo,
-                    'mensaje' => $aprobado ?
-                        '¡Felicidades! Has aprobado la evaluación.' :
-                        'No has alcanzado el puntaje mínimo. Puedes intentarlo nuevamente.'
-                ]
+                'data' => $responseData
             ], 200);
-
         } catch (\Exception $e) {
+            \Log::error('Error al finalizar evaluación', [
+                'error' => $e->getMessage(),
+                'modulo_id' => $moduloId,
+                'intento_id' => $intentoId
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error al finalizar evaluación',
@@ -620,7 +672,6 @@ class EvaluacionController extends Controller
                     'recomendaciones' => $this->getRecomendacionesResultado($intento)
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -677,7 +728,6 @@ class EvaluacionController extends Controller
                     'intentos' => $intentos
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -690,7 +740,7 @@ class EvaluacionController extends Controller
     /**
      * Métodos helper privados
      */
-    private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
+private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
     {
         // Si ya aprobó
         $yaAprobo = IntentoEvaluacion::where('usuario_id', $usuario->id)
@@ -726,12 +776,22 @@ class EvaluacionController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                return [
-                    'puede' => false,
-                    'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
-                ];
+            if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                if ($horasTranscurridas < 24) {
+                    $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                    $horasRestantes = floor($segundosRestantes / 3600);
+                    $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                    $segundosRestantesDisplay = floor($segundosRestantes % 60);
+
+                    $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segundosRestantesDisplay}s";
+
+                    return [
+                        'puede' => false,
+                        'mensaje' => "Podrás intentar nuevamente en {$tiempoFormateado}"
+                    ];
+                }
             }
         }
 

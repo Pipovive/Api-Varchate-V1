@@ -12,10 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class ProgresoController extends Controller
 {
-    /**
-     * Obtener módulos con progreso para el menú
-     * GET /modulos-con-progreso
-     */
     public function getModulosConProgreso()
     {
         try {
@@ -27,28 +23,19 @@ class ProgresoController extends Controller
             $resultado = [];
 
             foreach ($modulos as $modulo) {
-                // Obtener progreso del módulo
-                $progreso = ProgresoModulo::firstOrCreate([
-                    'usuario_id' => $usuario->id,
-                    'modulo_id' => $modulo->id
-                ]);
+                // Sincronizar y obtener el progreso más reciente (esto recalcula evaluacion_aprobada e intentos)
+                $progreso = $this->actualizarProgresoModulo($modulo->id, $usuario->id);
 
-                // Calcular porcentaje basado en lecciones vistas
-                $totalLecciones = $modulo->lecciones()->count();
-                $leccionesVistas = $this->contarLeccionesVistas($modulo->id, $usuario->id);
-                $porcentaje = $totalLecciones > 0 ? ($leccionesVistas / $totalLecciones) * 100 : 0;
-
-                // Actualizar si es necesario
-                if ($progreso->porcentaje_completado != $porcentaje) {
-                    $ultimaLeccion = $this->obtenerUltimaLeccionVista($modulo->id, $usuario->id);
-
-                    $progreso->update([
-                        'porcentaje_completado' => $porcentaje,
-                        'lecciones_vistas' => $leccionesVistas,
-                        'total_lecciones' => $totalLecciones,
-                        'ultima_leccion_vista_id' => $ultimaLeccion ? $ultimaLeccion->id : null,
-                        'fecha_ultimo_progreso' => now()
-                    ]);
+                // Obtener datos auxiliares para el desglose (opcional, para mantener el formato del JSON de respuesta)
+                $totalLecciones = $progreso->total_lecciones;
+                $leccionesVistas = $progreso->lecciones_vistas;
+                
+                if ($progreso->evaluacion_aprobada) {
+                    $porcentajeLecciones = ($totalLecciones > 0) ? ($leccionesVistas / $totalLecciones) * 100 : 0;
+                    $porcentajeEvaluacion = 100 - $porcentajeLecciones;
+                } else {
+                    $porcentajeLecciones = ($totalLecciones > 0) ? ($leccionesVistas / $totalLecciones) * 100 : 0;
+                    $porcentajeEvaluacion = 0;
                 }
 
                 $resultado[] = [
@@ -59,8 +46,12 @@ class ProgresoController extends Controller
                     'progreso' => (float) $progreso->porcentaje_completado,
                     'lecciones_vistas' => $progreso->lecciones_vistas,
                     'total_lecciones' => $progreso->total_lecciones,
-                    'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada, // AÑADIDO
-                    'certificado_disponible' => (bool) $progreso->certificado_disponible
+                    'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada,
+                    'certificado_disponible' => (bool) $progreso->certificado_disponible,
+                    'desglose' => [
+                        'lecciones' => $porcentajeLecciones,
+                        'evaluacion' => $porcentajeEvaluacion
+                    ]
                 ];
             }
 
@@ -77,7 +68,6 @@ class ProgresoController extends Controller
             ], 500);
         }
     }
-
     /**
      * Obtener navegación para una lección (anterior/siguiente)
      * GET /modulos/{moduloId}/lecciones/{leccionId}/navegacion
@@ -366,7 +356,157 @@ class ProgresoController extends Controller
             ], 500);
         }
     }
+    /**
+     * Sincronizar evaluación aprobada con progreso
+     * POST /modulos/{moduloId}/sincronizar-evaluacion
+     */
+    public function sincronizarEvaluacion($moduloId)
+    {
+        try {
+            $usuario = Auth::user();
 
+            \Log::info('Sincronizando evaluación', [
+                'usuario_id' => $usuario->id,
+                'modulo_id' => $moduloId
+            ]);
+
+            // 1. Buscar último intento aprobado
+            $ultimoIntentoAprobado = \App\Models\IntentoEvaluacion::where('usuario_id', $usuario->id)
+                ->whereHas('evaluacion', function ($q) use ($moduloId) {
+                    $q->where('modulo_id', $moduloId);
+                })
+                ->where('aprobado', true)
+                ->latest()
+                ->first();
+
+            \Log::info('Último intento encontrado', [
+                'existe' => !is_null($ultimoIntentoAprobado),
+                'intento_id' => $ultimoIntentoAprobado ? $ultimoIntentoAprobado->id : null,
+                'aprobado' => $ultimoIntentoAprobado ? $ultimoIntentoAprobado->aprobado : false
+            ]);
+
+            // 2. Buscar o crear progreso
+            $progreso = ProgresoModulo::where('usuario_id', $usuario->id)
+                ->where('modulo_id', $moduloId)
+                ->first();
+
+            if (!$progreso) {
+                // Si no existe, crear uno nuevo
+                $totalLecciones = Leccion::where('modulo_id', $moduloId)
+                    ->where('estado', 'activo')
+                    ->count();
+
+                $leccionesVistas = $this->contarLeccionesVistas($moduloId, $usuario->id);
+
+                $progreso = ProgresoModulo::create([
+                    'usuario_id' => $usuario->id,
+                    'modulo_id' => $moduloId,
+                    'porcentaje_completado' => !is_null($ultimoIntentoAprobado) ? 100.00 : 0,
+                    'lecciones_vistas' => $leccionesVistas,
+                    'total_lecciones' => $totalLecciones,
+                    'evaluacion_aprobada' => !is_null($ultimoIntentoAprobado),
+                    'certificado_disponible' => !is_null($ultimoIntentoAprobado),
+                    'fecha_ultimo_progreso' => now()
+                ]);
+            } else {
+                // Si existe, actualizar
+                $progreso->update([
+                    'evaluacion_aprobada' => !is_null($ultimoIntentoAprobado),
+                    'certificado_disponible' => !is_null($ultimoIntentoAprobado),
+                    'porcentaje_completado' => !is_null($ultimoIntentoAprobado) ? 100.00 : $progreso->porcentaje_completado,
+                    'fecha_ultimo_progreso' => now()
+                ]);
+            }
+
+            // 3. Actualizar ranking
+            $this->actualizarRanking($moduloId, $usuario->id, $progreso->porcentaje_completado);
+
+            \Log::info('Progreso sincronizado', [
+                'evaluacion_aprobada' => $progreso->evaluacion_aprobada,
+                'certificado_disponible' => $progreso->certificado_disponible,
+                'porcentaje_completado' => $progreso->porcentaje_completado
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluación sincronizada correctamente',
+                'data' => [
+                    'progreso' => [
+                        'porcentaje_completado' => (float) $progreso->porcentaje_completado,
+                        'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada,
+                        'certificado_disponible' => (bool) $progreso->certificado_disponible,
+                        'lecciones_vistas' => $progreso->lecciones_vistas,
+                        'total_lecciones' => $progreso->total_lecciones
+                    ],
+                    'intento_aprobado' => !is_null($ultimoIntentoAprobado) ? [
+                        'id' => $ultimoIntentoAprobado->id,
+                        'porcentaje' => (float) $ultimoIntentoAprobado->porcentaje_obtenido,
+                        'fecha' => $ultimoIntentoAprobado->fecha_fin
+                    ] : null
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error sincronizando evaluación', [
+                'error' => $e->getMessage(),
+                'modulo_id' => $moduloId
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al sincronizar evaluación',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+ * Forzar actualización de progreso
+ * POST /modulos/{moduloId}/forzar-actualizacion
+ */
+    public function forzarActualizacionProgreso($moduloId)
+    {
+        try {
+            $usuario = Auth::user();
+
+            // Forzar actualización completa
+            $this->actualizarProgresoModulo($moduloId, $usuario->id);
+
+            // Verificar progreso actualizado
+            $progreso = ProgresoModulo::where('usuario_id', $usuario->id)
+                ->where('modulo_id', $moduloId)
+                ->first();
+
+            // Verificar intentos aprobados
+            $intentoAprobado = \App\Models\IntentoEvaluacion::where('usuario_id', $usuario->id)
+                ->whereHas('evaluacion', function ($q) use ($moduloId) {
+                    $q->where('modulo_id', $moduloId);
+                })
+                ->where('aprobado', true)
+                ->exists();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Progreso forzado correctamente',
+                'data' => [
+                    'progreso_actualizado' => $progreso ? [
+                        'porcentaje_completado' => (float) $progreso->porcentaje_completado,
+                        'evaluacion_aprobada' => (bool) $progreso->evaluacion_aprobada,
+                        'certificado_disponible' => (bool) $progreso->certificado_disponible
+                    ] : null,
+                    'tiene_intento_aprobado' => $intentoAprobado,
+                    'consistencia' => $progreso ?
+                        ((bool)$progreso->evaluacion_aprobada === $intentoAprobado) : false
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al forzar actualización',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Actualizar estado de evaluación aprobada
      * POST /modulos/{moduloId}/actualizar-evaluacion-aprobada
@@ -421,14 +561,39 @@ class ProgresoController extends Controller
         ->count();
     }
 
-    private function actualizarProgresoModulo($moduloId, $usuarioId)
+    public function actualizarProgresoModulo($moduloId, $usuarioId)
     {
         $totalLecciones = Leccion::where('modulo_id', $moduloId)
             ->where('estado', 'activo')
             ->count();
 
         $leccionesVistas = $this->contarLeccionesVistas($moduloId, $usuarioId);
-        $porcentaje = $totalLecciones > 0 ? ($leccionesVistas / $totalLecciones) * 100 : 0;
+
+        // ===== LÓGICA CORREGIDA Y SIMPLIFICADA =====
+        // 1. Verificar si ya aprobó evaluación
+        $ultimoIntentoAprobado = \App\Models\IntentoEvaluacion::where('usuario_id', $usuarioId)
+            ->whereHas('evaluacion', function ($q) use ($moduloId) {
+                $q->where('modulo_id', $moduloId);
+            })
+            ->where('aprobado', true)
+            ->latest()
+            ->first();
+
+        $evaluacionAprobada = !is_null($ultimoIntentoAprobado);
+
+        // 2. Determinar porcentaje
+        if ($evaluacionAprobada) {
+            // Si aprobó evaluación: 100%
+            $porcentajeTotal = 100.00;
+            $certificadoDisponible = true;
+        } else {
+            // Si no aprobó: solo lecciones completadas
+            $porcentajeTotal = $totalLecciones > 0
+                ? ($leccionesVistas / $totalLecciones) * 100
+                : 0;
+            $certificadoDisponible = false;
+        }
+        // ===== FIN LÓGICA CORREGIDA =====
 
         // Obtener última lección vista
         $ultimaLeccion = $this->obtenerUltimaLeccionVista($moduloId, $usuarioId);
@@ -439,15 +604,36 @@ class ProgresoController extends Controller
                 'modulo_id' => $moduloId
             ],
             [
-                'porcentaje_completado' => $porcentaje,
+                'porcentaje_completado' => $porcentajeTotal,
                 'lecciones_vistas' => $leccionesVistas,
                 'total_lecciones' => $totalLecciones,
+                'evaluacion_aprobada' => $evaluacionAprobada,
+                'certificado_disponible' => $certificadoDisponible,
                 'ultima_leccion_vista_id' => $ultimaLeccion ? $ultimaLeccion->id : null,
                 'fecha_ultimo_progreso' => now()
             ]
         );
 
+        // Actualizar ranking si cambió
+        $this->actualizarRanking($moduloId, $usuarioId, $porcentajeTotal);
+
         return $progresoModulo;
+    }
+
+
+    private function actualizarRanking($moduloId, $usuarioId, $porcentaje)
+    {
+        // Actualizar tabla ranking
+        \App\Models\Ranking::updateOrCreate(
+            [
+                'modulo_id' => $moduloId,
+                'usuario_id' => $usuarioId
+            ],
+            [
+                'porcentaje_progreso' => $porcentaje,
+                'fecha_ultima_actualizacion' => now()
+            ]
+        );
     }
 
     private function obtenerUltimaLeccionVista($moduloId, $usuarioId)

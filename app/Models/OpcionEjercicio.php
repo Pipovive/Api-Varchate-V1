@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class OpcionEjercicio extends Model
 {
     use HasFactory;
-    public $timestamps = true;
+    public $timestamps = false;
     protected $table = 'opciones_ejercicio';
     protected $fillable = [
         'ejercicio_id',
