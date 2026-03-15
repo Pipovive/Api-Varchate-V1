@@ -21,6 +21,7 @@ class UserController extends Controller
             'email' => $user->email,
             'avatar_id' => $user->avatar_id,
             'has_password' => !empty($user->password),
+            'proveedor_auth' => $request->user()->proveedor_auth, // agregar esto
         ]);
     }
 
