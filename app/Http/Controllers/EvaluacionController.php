@@ -642,15 +642,11 @@ class EvaluacionController extends Controller
                     'respuesta_usuario' => [
                         'opcion_id' => $respuesta->opcion_seleccionada_id,
                         'opcion_texto' => $respuesta->opcionSeleccionada ? $respuesta->opcionSeleccionada->texto : null,
-                        'respuesta_texto' => $respuesta->respuesta_texto,
+                        'respuesta_texto' => $this->formatRespuestaTexto($pregunta, $respuesta->respuesta_texto),
                         'es_correcta' => $respuesta->es_correcta,
                         'puntos_obtenidos' => (float) $respuesta->puntos_obtenidos
                     ],
-                    'respuesta_correcta' => $opcionCorrecta ? [
-                        'id' => $opcionCorrecta->id,
-                        'texto' => $opcionCorrecta->texto,
-                        'pareja_arrastre' => $opcionCorrecta->pareja_arrastre
-                    ] : null,
+                    'respuesta_correcta' => $this->formatRespuestaCorrecta($pregunta),
                     'explicacion' => $this->getExplicacionPregunta($pregunta->tipo, $respuesta->es_correcta)
                 ];
             }
@@ -817,6 +813,61 @@ private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletado
             'puede' => true,
             'mensaje' => 'Puedes iniciar una nueva evaluación'
         ];
+    }
+
+    /**
+     * Formatea el texto de la respuesta según el tipo de pregunta
+     */
+    private function formatRespuestaTexto($pregunta, $respuestaTexto)
+    {
+        if ($pregunta->tipo === 'arrastrar_soltar' && $respuestaTexto) {
+            try {
+                $parejasAsignadas = json_decode($respuestaTexto, true);
+                if (is_array($parejasAsignadas)) {
+                    $formatted = [];
+                    // Cargar opciones para buscar el texto
+                    $opciones = $pregunta->opciones;
+
+                    foreach ($parejasAsignadas as $p) {
+                        $idOpcion = $p['id_opcion'] ?? null;
+                        $pareja = $p['pareja'] ?? '?';
+                        
+                        $opcion = $opciones->firstWhere('id', $idOpcion);
+                        $texto = $opcion ? $opcion->texto : '?';
+                        
+                        $formatted[] = "{$pareja} -> {$texto}";
+                    }
+                    return implode(', ', $formatted);
+                }
+            } catch (\Exception $e) {
+                return $respuestaTexto;
+            }
+        }
+        return $respuestaTexto;
+    }
+
+    /**
+     * Formatea la respuesta correcta según el tipo de pregunta
+     */
+    private function formatRespuestaCorrecta($pregunta)
+    {
+        if ($pregunta->tipo === 'arrastrar_soltar') {
+            $opciones = $pregunta->opciones;
+            $formatted = [];
+            foreach ($opciones as $opcion) {
+                $formatted[] = "{$opcion->pareja_arrastre} -> {$opcion->texto}";
+            }
+            return [
+                'texto' => implode(', ', $formatted)
+            ];
+        }
+
+        $opcionCorrecta = $pregunta->getOpcionCorrecta();
+        return $opcionCorrecta ? [
+            'id' => $opcionCorrecta->id,
+            'texto' => $opcionCorrecta->texto,
+            'pareja_arrastre' => $opcionCorrecta->pareja_arrastre
+        ] : null;
     }
 
     private function getInstruccionesPorTipo($tipo)
