@@ -13,13 +13,22 @@ class VerifyEmailCustom extends VerifyEmail
 {
     protected function verificationUrl($notifiable)
     {
-        return URL::temporarySignedRoute(
+        $frontendUrl = env('FRONTEND_URL', 'http://127.0.0.1:8000');
+
+        $backendUrl = URL::temporarySignedRoute(
             'verification.verify',
             Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
             [
                 'id' => $notifiable->getKey(),
                 'hash' => sha1($notifiable->getEmailForVerification()),
             ]
+        );
+
+        // Reemplazar la URL del backend por la del frontend
+        return str_replace(
+            env('APP_URL'),
+            $frontendUrl,
+            $backendUrl
         );
     }
 
@@ -34,7 +43,7 @@ class VerifyEmailCustom extends VerifyEmail
 
         return (new MailMessage)
             ->subject('Verifica tu correo - Varchate')
-            ->greeting('¡Hola '.$notifiable->nombre.'! 👋')
+            ->greeting('¡Hola ' . $notifiable->nombre . '! 👋')
             ->line('Gracias por registrarte en Varchate.')
             ->line('Por favor verifica tu correo electrónico para activar tu cuenta.')
             ->action('Verificar correo', $url)
