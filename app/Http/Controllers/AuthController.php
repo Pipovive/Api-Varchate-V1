@@ -258,7 +258,7 @@ class AuthController extends Controller
             'id_token' => 'required|string'
         ]);
 
-        \Log::info('Token recibido:', ['token' => substr($request->token, 0, 50)]);  // ← aquí
+        \Log::info('Token recibido:', ['token' => substr($request->id_token, 0, 50)]);
 
         try {
             $googleUser = Socialite::driver('google')

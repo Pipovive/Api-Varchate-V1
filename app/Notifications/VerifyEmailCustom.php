@@ -30,8 +30,6 @@ class VerifyEmailCustom extends VerifyEmail
 
     public function toMail($notifiable)
     {
-        Log::info('Generando correo de verificación para: ' . $notifiable->email);
-        
         $url = $this->verificationUrl($notifiable);
 
         return (new MailMessage)
