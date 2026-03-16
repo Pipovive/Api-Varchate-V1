@@ -7,10 +7,13 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Bus\Queueable;
 
-class VerifyEmailCustom extends VerifyEmail
+class VerifyEmailCustom extends VerifyEmail implements ShouldQueue
 {
+    use Queueable;
+
     protected function verificationUrl($notifiable)
     {
         return URL::temporarySignedRoute(
