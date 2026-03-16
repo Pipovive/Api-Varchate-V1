@@ -30,11 +30,6 @@ class AppServiceProvider extends ServiceProvider
                 . '&email=' . urlencode($user->email);
         });
 
-        RateLimiter::for('email-resend', function (Request $request) {
-            return Limit::perMinutes(5, 3)->by(
-                $request->user()?->id ?: $request->ip()
-            );
-        });
 
         RateLimiter::for('password-reset', function (Request $request) {
             return Limit::perMinutes(10, 3)->by($request->ip());
