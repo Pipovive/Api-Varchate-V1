@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(10, 3)->by($request->ip());
         });
 
+        // ← AGREGA ESTO
+        RateLimiter::for('email-resend', function (Request $request) {
+            return Limit::perMinutes(5, 3)->by($request->ip());
+        });
+
         $this->app->resolving(MailManager::class, function (MailManager $manager) {
             $manager->extend('brevo', function () {
                 $factory = new BrevoTransportFactory();
