@@ -15,7 +15,7 @@ class VerifyEmailCustom extends VerifyEmail
     {
         $frontendUrl = env('FRONTEND_URL', 'http://127.0.0.1:8000');
 
-        $backendUrl = URL::temporarySignedRoute(
+        $temporarySignedRoute = URL::temporarySignedRoute(
             'verification.verify',
             Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
             [
@@ -24,12 +24,13 @@ class VerifyEmailCustom extends VerifyEmail
             ]
         );
 
-        // Reemplazar la URL del backend por la del frontend
-        return str_replace(
-            env('APP_URL'),
-            $frontendUrl,
-            $backendUrl
-        );
+        // Extraer solo los query params de la URL firmada
+        $parsedUrl = parse_url($temporarySignedRoute);
+        $queryString = $parsedUrl['query'] ?? '';
+        $id = $notifiable->getKey();
+        $hash = sha1($notifiable->getEmailForVerification());
+
+        return "{$frontendUrl}/api/email/verify/{$id}/{$hash}?{$queryString}";
     }
 
     public function via($notifiable)
