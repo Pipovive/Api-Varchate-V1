@@ -60,7 +60,24 @@ class EvaluacionController extends Controller
             });
 
             // Verificar si puede realizar nuevo intento
-            $puedeIntentar = $this->puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados);
+            $estadoIntento = $this->puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados);
+            $puedeIntentar = $estadoIntento['puede'];
+
+            // Calcular intentos disponibles en el lote/bloque actual
+            $batchSize = $evaluacion->max_intentos;
+            $intentosEnBloqueActual = $intentosCompletados % $batchSize;
+            
+            // Si ya completó el bloque actual, y está en periodo de espera, mostramos 0.
+            // Si ya pasó el periodo de espera, mostramos el máximo de nuevo (reset).
+            $intentosDisponibles = $batchSize - $intentosEnBloqueActual;
+            if ($intentosCompletados > 0 && $intentosEnBloqueActual == 0) {
+                // Caso exacto donde terminó un bloque
+                if (!$puedeIntentar) {
+                    $intentosDisponibles = 0;
+                } else {
+                    $intentosDisponibles = $batchSize;
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -82,10 +99,10 @@ class EvaluacionController extends Controller
                         'slug' => $modulo->slug
                     ],
                     'estado_usuario' => [
-                        'puede_intentar' => $puedeIntentar['puede'],
-                        'mensaje' => $puedeIntentar['mensaje'],
+                        'puede_intentar' => $puedeIntentar,
+                        'mensaje' => $estadoIntento['mensaje'],
                         'intentos_completados' => $intentosCompletados,
-                        'intentos_disponibles' => max(0, $evaluacion->max_intentos - $intentosCompletados),
+                        'intentos_disponibles' => $intentosDisponibles,
                         'tiene_intento_en_progreso' => !is_null($intentoEnProgreso),
                         'intento_en_progreso_id' => $intentoEnProgreso ? $intentoEnProgreso->id : null,
                         'ya_aprobo' => !is_null($ultimoIntentoAprobado),
@@ -142,17 +159,17 @@ class EvaluacionController extends Controller
 
             // Validar si puede iniciar
             if ($intentoEnProgreso) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ya tienes un intento en progreso',
-                    'data' => [
-                        'intento_en_progreso_id' => $intentoEnProgreso->id
-                    ]
-                ], 400);
+                // El usuario quiere empezar de nuevo: abandonamos el anterior
+                $intentoEnProgreso->update([
+                    'estado' => 'abandonado',
+                    'fecha_fin' => now()
+                ]);
             }
 
-            if ($intentosCompletados >= $evaluacion->max_intentos) {
-                // Verificar si ha pasado 24 horas desde el último intento
+            // Lógica de reset de intentos por lotes (24h)
+            $batchSize = $evaluacion->max_intentos;
+            if ($intentosCompletados > 0 && ($intentosCompletados % $batchSize == 0)) {
+                // Ha completado un lote (ej: 3, 6, 9 intentos)
                 $ultimoIntento = $intentosUsuario->where('estado', 'completado')
                     ->sortByDesc('created_at')
                     ->first();
@@ -170,7 +187,7 @@ class EvaluacionController extends Controller
 
                         return response()->json([
                             'success' => false,
-                            'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$tiempoFormateado}.",
+                            'message' => "Has agotado tu bloque de intentos. Podrás intentar nuevamente en {$tiempoFormateado}.",
                             'code' => 'LIMITE_INTENTOS_ALCANZADO'
                         ], 429);
                     }
@@ -768,8 +785,9 @@ private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletado
             ];
         }
 
-        // Verificar límite de intentos
-        if ($intentosCompletados >= $evaluacion->max_intentos) {
+        // Verificar límite de intentos por bloque (3 cada 24h)
+        $batchSize = $evaluacion->max_intentos;
+        if ($intentosCompletados > 0 && ($intentosCompletados % $batchSize == 0)) {
             $ultimoIntento = IntentoEvaluacion::where('usuario_id', $usuario->id)
                 ->where('evaluacion_id', $evaluacion->id)
                 ->where('estado', 'completado')
@@ -789,7 +807,7 @@ private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletado
 
                     return [
                         'puede' => false,
-                        'mensaje' => "Podrás intentar nuevamente en {$tiempoFormateado}"
+                        'mensaje' => "Podrás intentar de nuevo en {$tiempoFormateado}"
                     ];
                 }
             }
