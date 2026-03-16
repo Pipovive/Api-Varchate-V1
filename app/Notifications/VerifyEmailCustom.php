@@ -11,17 +11,17 @@ use Illuminate\Support\Facades\Log;
 
 class VerifyEmailCustom extends VerifyEmail
 {
-    protected function verificationUrl($notifiable)
-    {
-        return URL::temporarySignedRoute(
-            'verification.verify',
-            Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
-            [
-                'id' => $notifiable->getKey(),
-                'hash' => sha1($notifiable->getEmailForVerification()),
-            ]
-        );
-    }
+   protected function verificationUrl($notifiable)
+{
+    return URL::temporarySignedRoute(
+        'verification.verify',
+        Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+        [
+            'id' => $notifiable->getKey(),
+            'hash' => sha1($notifiable->getEmailForVerification()),
+        ]
+    );
+}
 
     public function via($notifiable)
     {
@@ -34,7 +34,7 @@ class VerifyEmailCustom extends VerifyEmail
 
         return (new MailMessage)
             ->subject('Verifica tu correo - Varchate')
-            ->greeting('¡Hola '.$notifiable->nombre.'! 👋')
+            ->greeting('¡Hola ' . $notifiable->nombre . '! 👋')
             ->line('Gracias por registrarte en Varchate.')
             ->line('Por favor verifica tu correo electrónico para activar tu cuenta.')
             ->action('Verificar correo', $url)

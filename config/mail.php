@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'default' => 'smtp',
+    'default' => env('MAIL_MAILER', 'brevo'),
 
     /*
     |--------------------------------------------------------------------------
@@ -92,6 +92,9 @@ return [
                 'postmark',
             ],
             'retry_after' => 60,
+        ],
+        'brevo' => [
+            'transport' => 'brevo',
         ],
 
     ],
