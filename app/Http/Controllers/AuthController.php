@@ -19,6 +19,9 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        $start = microtime(true);
+        \Log::info('📝 [REGISTER] Inicio', ['email' => $request->email]);
+
         $request->validate([
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:usuarios',
@@ -43,6 +46,8 @@ class AuthController extends Controller
             'terms_accepted.required' => 'Debes aceptar los términos y condiciones.',
         ]);
 
+        \Log::info('✅ [REGISTER] Validación OK', ['ms' => round((microtime(true) - $start) * 1000)]);
+
         $usuario = Usuario::create([
             'nombre' => $request->nombre,
             'email' => $request->email,
@@ -51,6 +56,8 @@ class AuthController extends Controller
             'terms_accepted_at' => now(),
             'avatar_id' => 1,
         ]);
+
+        \Log::info('✅ [REGISTER] Usuario creado', ['id' => $usuario->id, 'ms' => round((microtime(true) - $start) * 1000)]);
 
         UserAttempt::create([
             'user_id' => $usuario->id,
@@ -61,11 +68,16 @@ class AuthController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        \Log::info('✅ [REGISTER] UserAttempt creado', ['ms' => round((microtime(true) - $start) * 1000)]);
+
         try {
             $usuario->sendEmailVerificationNotification();
+            \Log::info('✅ [REGISTER] Correo enviado', ['ms' => round((microtime(true) - $start) * 1000)]);
         } catch (\Exception $e) {
-            \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+            \Log::error('❌ [REGISTER] Error correo: ' . $e->getMessage(), ['ms' => round((microtime(true) - $start) * 1000)]);
         }
+
+        \Log::info('🏁 [REGISTER] Fin', ['total_ms' => round((microtime(true) - $start) * 1000)]);
 
         return response()->json([
             'message' => 'Se envió un correo a tu email para comprobar que eres tú',
