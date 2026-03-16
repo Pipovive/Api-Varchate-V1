@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use App\Models\Avatar;
 use App\Models\UserAttempt;
 use Illuminate\Notifications\Notification;
@@ -18,6 +19,7 @@ class Usuario extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use Notifiable;
+    use MustVerifyEmailTrait;
 
     protected $table = "usuarios";
 

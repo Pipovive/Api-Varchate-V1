@@ -7,6 +7,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 class VerifyEmailCustom extends VerifyEmail
 {
@@ -22,8 +23,15 @@ class VerifyEmailCustom extends VerifyEmail
         );
     }
 
+    public function via($notifiable)
+    {
+        return ['mail'];
+    }
+
     public function toMail($notifiable)
     {
+        Log::info('Generando correo de verificación para: ' . $notifiable->email);
+        
         $url = $this->verificationUrl($notifiable);
 
         return (new MailMessage)
