@@ -11,27 +11,17 @@ use Illuminate\Support\Facades\Log;
 
 class VerifyEmailCustom extends VerifyEmail
 {
-    protected function verificationUrl($notifiable)
-    {
-        $frontendUrl = env('FRONTEND_URL', 'http://127.0.0.1:8000');
-
-        $temporarySignedRoute = URL::temporarySignedRoute(
-            'verification.verify',
-            Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
-            [
-                'id' => $notifiable->getKey(),
-                'hash' => sha1($notifiable->getEmailForVerification()),
-            ]
-        );
-
-        // Extraer solo los query params de la URL firmada
-        $parsedUrl = parse_url($temporarySignedRoute);
-        $queryString = $parsedUrl['query'] ?? '';
-        $id = $notifiable->getKey();
-        $hash = sha1($notifiable->getEmailForVerification());
-
-        return "{$frontendUrl}/api/email/verify/{$id}/{$hash}?{$queryString}";
-    }
+   protected function verificationUrl($notifiable)
+{
+    return URL::temporarySignedRoute(
+        'verification.verify',
+        Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+        [
+            'id' => $notifiable->getKey(),
+            'hash' => sha1($notifiable->getEmailForVerification()),
+        ]
+    );
+}
 
     public function via($notifiable)
     {
