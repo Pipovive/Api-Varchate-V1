@@ -64,7 +64,10 @@ class AuthController extends Controller
         try {
             $usuario->sendEmailVerificationNotification();
         } catch (\Exception $e) {
-            \Log::error('Error enviando correo de verificación: ' . $e->getMessage());
+            \Log::error('Error enviando correo de verificación al registrar: ' . $e->getMessage(), [
+                'email' => $usuario->email,
+                'exception' => $e
+            ]);
         }
 
         return response()->json([
@@ -246,7 +249,7 @@ class AuthController extends Controller
             'id_token' => 'required|string'
         ]);
 
-        \Log::info('Token recibido:', ['token' => substr($request->token, 0, 50)]);  // ← aquí
+        \Log::info('Token recibido:', ['token' => substr($request->id_token, 0, 50)]);
 
         try {
             $googleUser = Socialite::driver('google')
