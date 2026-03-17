@@ -19,6 +19,9 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        $start = microtime(true);
+        \Log::info('📝 [REGISTER] Inicio', ['email' => $request->email]);
+
         $request->validate([
             'nombre' => 'required|string|max:40',
             'email' => 'required|email|unique:usuarios',
@@ -30,7 +33,20 @@ class AuthController extends Controller
                     ->numbers()
             ],
             'terms_accepted' => 'required|boolean'
+        ], [
+            'nombre.required' => 'El nombre es obligatorio.',
+            'nombre.string' => 'El nombre debe ser una cadena de texto.',
+            'nombre.max' => 'El nombre no puede exceder los 255 caracteres.',
+            'email.required' => 'El correo electrónico es obligatorio.',
+            'email.email' => 'Ingresa un correo electrónico válido.',
+            'email.unique' => 'Este correo electrónico ya está registrado.',
+            'password.required' => 'La contraseña es obligatoria.',
+            'password.confirmed' => 'Las contraseñas no coinciden.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'terms_accepted.required' => 'Debes aceptar los términos y condiciones.',
         ]);
+
+        \Log::info('✅ [REGISTER] Validación OK', ['ms' => round((microtime(true) - $start) * 1000)]);
 
         $usuario = Usuario::create([
             'nombre' => $request->nombre,
@@ -41,6 +57,8 @@ class AuthController extends Controller
             'avatar_id' => 1,
         ]);
 
+        \Log::info('✅ [REGISTER] Usuario creado', ['id' => $usuario->id, 'ms' => round((microtime(true) - $start) * 1000)]);
+
         UserAttempt::create([
             'user_id' => $usuario->id,
             'email' => $usuario->email,
@@ -50,12 +68,16 @@ class AuthController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        \Log::info('✅ [REGISTER] UserAttempt creado', ['ms' => round((microtime(true) - $start) * 1000)]);
 
+        try {
+            $usuario->sendEmailVerificationNotification();
+            \Log::info('✅ [REGISTER] Correo enviado', ['ms' => round((microtime(true) - $start) * 1000)]);
+        } catch (\Exception $e) {
+            \Log::error('❌ [REGISTER] Error correo: ' . $e->getMessage(), ['ms' => round((microtime(true) - $start) * 1000)]);
+        }
 
-        $usuario->sendEmailVerificationNotification();
-        //Creacion de token de sacnctum
-
-
+        \Log::info('🏁 [REGISTER] Fin', ['total_ms' => round((microtime(true) - $start) * 1000)]);
 
         return response()->json([
             'message' => 'Se envió un correo a tu email para comprobar que eres tú',
@@ -109,9 +131,8 @@ class AuthController extends Controller
                     'user_id' => $user->id,
                     'email' => $user->email,
                     'action' => 'password_reset',
-                    'status' => 'success',
                     'success' => true,
-                    'ip_address' => $request->ip(),
+                    'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
             }
@@ -138,45 +159,80 @@ class AuthController extends Controller
         // 1. Buscar usuario
         $usuario = Usuario::where('email', $request->email)->first();
 
-        // 2. Validar existencia y contraseña
-        if (!$usuario || !Hash::check($request->password, $usuario->password)) {
+        // 2. Si no existe
+        if (!$usuario) {
+
             UserAttempt::create([
                 'email' => $request->email,
                 'action' => 'login',
-                'status' => 'failed',
                 'success' => false,
-                'ip_address' => $request->ip(),
+                'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
             return response()->json([
                 'message' => 'Credenciales incorrectas'
             ], 401);
         }
 
+        // 3. Si la cuenta fue creada con Google y no tiene contraseña
+        if (!$usuario->password) {
+
+            UserAttempt::create([
+                'user_id' => $usuario->id,
+                'email' => $request->email,
+                'action' => 'login_google_required',
+                'success' => false,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return response()->json([
+                'message' => 'Esta cuenta fue registrada con Google. Inicia sesión con Google o crea una contraseña desde tu perfil.'
+            ], 401);
+        }
+
+        // 4. Validar contraseña
+        if (!Hash::check($request->password, $usuario->password)) {
+
+            UserAttempt::create([
+                'user_id' => $usuario->id,
+                'email' => $request->email,
+                'action' => 'login',
+                'success' => false,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return response()->json([
+                'message' => 'Credenciales incorrectas. Verifica tu correo y contraseña'
+            ], 401);
+        }
+
         UserAttempt::create([
+            'user_id' => $usuario->id,
             'email' => $request->email,
             'action' => 'login',
-            'status' => 'succes',
             'success' => true,
-            'ip_address' => $request->ip(),
+            'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        // 3. Validar estado
+        // 5. Validar estado
         if ($usuario->estado !== 'activo') {
             return response()->json([
                 'message' => 'Usuario inactivo'
             ], 403);
         }
 
-        // 4. Validar email verificado
+        // 6. Validar email verificado
         if (!$usuario->hasVerifiedEmail()) {
             return response()->json([
                 'message' => 'Debes verificar tu correo electrónico antes de iniciar sesión'
             ], 403);
         }
 
-        // 5. Crear token
+        // 7. Crear token
         $token = $usuario->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -199,31 +255,47 @@ class AuthController extends Controller
     public function loginWithGoogle(Request $request)
     {
         $request->validate([
-            'token' => 'required|string'
+            'id_token' => 'required|string'
         ]);
+
+        \Log::info('Token recibido:', ['token' => substr($request->id_token, 0, 50)]);
 
         try {
             $googleUser = Socialite::driver('google')
-                ->userFromToken($request->token);
-        } catch (Exception $e) {
+                ->stateless()
+                ->userFromToken($request->id_token);
+        } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Token de Google inválido'
             ], 401);
         }
 
+        // Buscar usuario por email
         $usuario = Usuario::where('email', $googleUser->getEmail())->first();
 
         if (!$usuario) {
+
+            // Crear usuario si no existe
             $usuario = Usuario::create([
                 'nombre' => $googleUser->getName(),
                 'email' => $googleUser->getEmail(),
                 'email_verified_at' => now(),
                 'proveedor_auth' => 'google',
                 'auth_provider_id' => $googleUser->getId(),
-                'password' => null,
+                'avatar_id' => 1
             ]);
+        } else {
+
+            // Si ya existe, solo vincular Google si aún no está vinculado
+            if (!$usuario->auth_provider_id) {
+                $usuario->update([
+                    'auth_provider_id' => $googleUser->getId(),
+                    'proveedor_auth' => 'google'
+                ]);
+            }
         }
 
+        // Crear token
         $token = $usuario->createToken('google-auth')->plainTextToken;
 
         return response()->json([
@@ -260,16 +332,16 @@ class AuthController extends Controller
 
     public function deleteAccount(Request $request)
     {
-        $request->validate([
-            'password' => 'required|string',
-        ]);
+        $user = $request->user();
 
-        $user = $request->user(); // usuario autenticado
+        if ($user->proveedor_auth !== 'google') {
+            $request->validate(['password' => 'required|string']);
 
-        if (!Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Contraseña incorrecta'
-            ], 403);
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'message' => 'Contraseña incorrecta'
+                ], 403);
+            }
         }
 
         $user->delete();

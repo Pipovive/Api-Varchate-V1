@@ -23,45 +23,19 @@ class ProgresoController extends Controller
             $resultado = [];
 
             foreach ($modulos as $modulo) {
-                // Obtener progreso del módulo
-                $progreso = ProgresoModulo::firstOrCreate([
-                    'usuario_id' => $usuario->id,
-                    'modulo_id' => $modulo->id
-                ]);
+                // Sincronizar y obtener el progreso más reciente (esto recalcula evaluacion_aprobada e intentos)
+                $progreso = $this->actualizarProgresoModulo($modulo->id, $usuario->id);
 
-                // RECALCULAR con lógica CORREGIDA
-                $totalLecciones = $modulo->lecciones()->count();
-                $leccionesVistas = $this->contarLeccionesVistas($modulo->id, $usuario->id);
-
-                // ===== LÓGICA CORREGIDA =====
-                // Si aprobó evaluación: 100%
-                // Si no: solo lecciones completadas
+                // Obtener datos auxiliares para el desglose (opcional, para mantener el formato del JSON de respuesta)
+                $totalLecciones = $progreso->total_lecciones;
+                $leccionesVistas = $progreso->lecciones_vistas;
+                
                 if ($progreso->evaluacion_aprobada) {
-                    $porcentajeTotal = 100.00;
-                    $porcentajeLecciones = ($totalLecciones > 0)
-                        ? ($leccionesVistas / $totalLecciones) * 100
-                        : 0;
+                    $porcentajeLecciones = ($totalLecciones > 0) ? ($leccionesVistas / $totalLecciones) * 100 : 0;
                     $porcentajeEvaluacion = 100 - $porcentajeLecciones;
                 } else {
-                    $porcentajeLecciones = ($totalLecciones > 0)
-                        ? ($leccionesVistas / $totalLecciones) * 100
-                        : 0;
-                    $porcentajeTotal = $porcentajeLecciones;
+                    $porcentajeLecciones = ($totalLecciones > 0) ? ($leccionesVistas / $totalLecciones) * 100 : 0;
                     $porcentajeEvaluacion = 0;
-                }
-                // ===== FIN LÓGICA CORREGIDA =====
-
-                // Actualizar si es necesario
-                if ($progreso->porcentaje_completado != $porcentajeTotal) {
-                    $ultimaLeccion = $this->obtenerUltimaLeccionVista($modulo->id, $usuario->id);
-
-                    $progreso->update([
-                        'porcentaje_completado' => $porcentajeTotal,
-                        'lecciones_vistas' => $leccionesVistas,
-                        'total_lecciones' => $totalLecciones,
-                        'ultima_leccion_vista_id' => $ultimaLeccion ? $ultimaLeccion->id : null,
-                        'fecha_ultimo_progreso' => now()
-                    ]);
                 }
 
                 $resultado[] = [
@@ -587,7 +561,7 @@ class ProgresoController extends Controller
         ->count();
     }
 
-    private function actualizarProgresoModulo($moduloId, $usuarioId)
+    public function actualizarProgresoModulo($moduloId, $usuarioId)
     {
         $totalLecciones = Leccion::where('modulo_id', $moduloId)
             ->where('estado', 'activo')

@@ -89,9 +89,28 @@ Route::middleware('auth:sanctum')->group(function () {
     | LECCIONES
     |--------------------------------------------------------------------------
     */
+
+
+    // 1️⃣ Rutas específicas con /id/ (PRIMERO)
+    Route::get('/modulos/{moduloSlug}/lecciones/id/{leccionId}', [LeccionesController::class, 'showByIdWithSlug']);
+
+    // 2️⃣ Marcar como vista
+    Route::get('/modulos/{moduloSlug}/lecciones/{leccionId}/marcar-vista', [LeccionesController::class, 'marcarComoVista']);
+
+    // 3️⃣ Navegación
+    Route::get('/modulos/{moduloSlug}/lecciones/{leccionId}/navegacion', [LeccionesController::class, 'navegacion']);
+
+    // 4️⃣ Listar lecciones
     Route::get('/modulos/{moduloSlug}/lecciones', [LeccionesController::class, 'index']);
+
+    // 5️⃣ Obtener lección por slug (ÚLTIMO, es el más genérico)
     Route::get('/modulos/{moduloSlug}/lecciones/{leccionSlug}', [LeccionesController::class, 'show']);
+
     Route::get('/modulos/{moduloId}/lecciones/id/{leccionId}', [LeccionesController::class, 'showById']);
+
+
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -213,6 +232,12 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin')->group(function
     Route::put('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'update']);
     Route::delete('/modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'destroy']);
     Route::post('/modulos/reorder', [App\Http\Controllers\Admin\ModuloController::class, 'reorder']);
+
+    // Gestión de Categorías de Módulos
+    Route::get('/categorias-modulos', [App\Http\Controllers\Admin\ModuloController::class, 'listarCategorias']);
+    Route::post('/categorias-modulos', [App\Http\Controllers\Admin\ModuloController::class, 'crearCategoria']);
+    Route::put('/categorias-modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'actualizarCategoria']);
+    Route::delete('/categorias-modulos/{id}', [App\Http\Controllers\Admin\ModuloController::class, 'eliminarCategoria']);
 
     // Gestión de Lecciones (dentro de módulos)
     Route::get('/modulos/{moduloId}/lecciones', [App\Http\Controllers\Admin\LeccionController::class, 'index']);

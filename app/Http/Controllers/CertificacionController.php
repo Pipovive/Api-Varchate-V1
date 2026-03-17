@@ -80,7 +80,7 @@ class CertificacionController extends Controller
             $nombreUsuario = mb_strtoupper($certificacion->usuario->nombre, 'UTF-8');
 
             // Convertir a mayúsculas pero mantener las tildes correctamente
-            $nombreModulo = $this->convertirMayusculasConTildes($certificacion->modulo->titulo);
+            $nombreModulo = $this->convertirMayusculasConTildes($certificacion->modulo->modulo);
 
             // Formatear fecha en español sin "DE"
             $meses = [

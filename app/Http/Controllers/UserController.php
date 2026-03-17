@@ -13,11 +13,15 @@ class UserController extends Controller
      */
     public function me(Request $request)
     {
+        $user = $request->user();
         return response()->json([
-            'id' => $request->user()->id,
-            'nombre' => $request->user()->nombre,
-            'email' => $request->user()->email,
-            'avatar_id' => $request->user()->avatar_id,
+            'id' => $user->id,
+            'nombre' => $user->nombre,
+            'name' => $user->nombre,
+            'email' => $user->email,
+            'avatar_id' => $user->avatar_id,
+            'has_password' => !empty($user->password),
+            'proveedor_auth' => $request->user()->proveedor_auth, // agregar esto
         ]);
     }
 
@@ -27,16 +31,30 @@ class UserController extends Controller
     public function updateProfile(Request $request)
     {
         $request->validate([
-            'nombre' => 'required|string|max:255',
+            'nombre' => 'sometimes|string|max:255', // opcional: permite actualizar solo avatar
+            'name' => 'sometimes|string|max:255', // alias enviado por el JS
             'avatar_id' => 'nullable|exists:avatars,id',
+        ], [
+            'nombre.string' => 'El nombre debe ser una cadena de texto.',
+            'nombre.max' => 'El nombre no puede exceder los 255 caracteres.',
+            'avatar_id.exists' => 'El avatar seleccionado no es válido.',
         ]);
 
         $user = $request->user();
 
-        $user->update([
-            'nombre' => $request->nombre,
+        // Aceptar 'nombre' o 'name' (alias enviado por el JS del frontend)
+        $nuevoNombre = $request->nombre ?? $request->name ?? null;
+
+        $updateData = [
             'avatar_id' => $request->avatar_id ?? $user->avatar_id,
-        ]);
+        ];
+
+        // Solo actualizar nombre si se proporcionó uno
+        if (!empty($nuevoNombre)) {
+            $updateData['nombre'] = $nuevoNombre;
+        }
+
+        $user->update($updateData);
 
         return response()->json([
             'message' => 'Perfil actualizado correctamente',
@@ -52,25 +70,46 @@ class UserController extends Controller
      */
     public function updatePassword(Request $request)
     {
-        $request->validate([
-            'current_password' => 'required|string',
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8)->mixedCase()->numbers(),
-            ],
-        ]);
-
         $user = $request->user();
 
-        // Verificar contraseña actual
-        if (!Hash::check($request->current_password, $user->password)) {
-            return response()->json([
-                'message' => 'La contraseña actual no es correcta',
-            ], 422);
+        // 1. Si el usuario ya tiene contraseña (registro manual)
+        if ($user->password) {
+            $request->validate([
+                'current_password' => 'required|string',
+                'password' => [
+                    'required',
+                    'confirmed',
+                    Password::min(8)->mixedCase()->numbers(),
+                ],
+            ], [
+                'current_password.required' => 'La contraseña actual es obligatoria.',
+                'password.required' => 'La nueva contraseña es obligatoria.',
+                'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+                'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            ]);
+
+            // Verificar que la contraseña actual sea correcta
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'message' => 'La contraseña actual no es correcta',
+                ], 422);
+            }
+        } else {
+            // 2. Si el usuario fue registrado con Google (no tiene contraseña)
+            $request->validate([
+                'password' => [
+                    'required',
+                    'confirmed',
+                    Password::min(8)->mixedCase()->numbers(),
+                ],
+            ], [
+                'password.required' => 'La nueva contraseña es obligatoria.',
+                'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+                'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            ]);
         }
 
-        // Guardar nueva contraseña
+        // 3. Guardar la nueva contraseña (sirve para ambos casos)
         $user->update([
             'password' => Hash::make($request->password),
         ]);

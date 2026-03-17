@@ -60,7 +60,24 @@ class EvaluacionController extends Controller
             });
 
             // Verificar si puede realizar nuevo intento
-            $puedeIntentar = $this->puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados);
+            $estadoIntento = $this->puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados);
+            $puedeIntentar = $estadoIntento['puede'];
+
+            // Calcular intentos disponibles en el lote/bloque actual
+            $batchSize = $evaluacion->max_intentos;
+            $intentosEnBloqueActual = $intentosCompletados % $batchSize;
+            
+            // Si ya completó el bloque actual, y está en periodo de espera, mostramos 0.
+            // Si ya pasó el periodo de espera, mostramos el máximo de nuevo (reset).
+            $intentosDisponibles = $batchSize - $intentosEnBloqueActual;
+            if ($intentosCompletados > 0 && $intentosEnBloqueActual == 0) {
+                // Caso exacto donde terminó un bloque
+                if (!$puedeIntentar) {
+                    $intentosDisponibles = 0;
+                } else {
+                    $intentosDisponibles = $batchSize;
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -82,10 +99,10 @@ class EvaluacionController extends Controller
                         'slug' => $modulo->slug
                     ],
                     'estado_usuario' => [
-                        'puede_intentar' => $puedeIntentar['puede'],
-                        'mensaje' => $puedeIntentar['mensaje'],
+                        'puede_intentar' => $puedeIntentar,
+                        'mensaje' => $estadoIntento['mensaje'],
                         'intentos_completados' => $intentosCompletados,
-                        'intentos_disponibles' => max(0, $evaluacion->max_intentos - $intentosCompletados),
+                        'intentos_disponibles' => $intentosDisponibles,
                         'tiene_intento_en_progreso' => !is_null($intentoEnProgreso),
                         'intento_en_progreso_id' => $intentoEnProgreso ? $intentoEnProgreso->id : null,
                         'ya_aprobo' => !is_null($ultimoIntentoAprobado),
@@ -107,7 +124,6 @@ class EvaluacionController extends Controller
                     })
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -143,28 +159,38 @@ class EvaluacionController extends Controller
 
             // Validar si puede iniciar
             if ($intentoEnProgreso) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ya tienes un intento en progreso',
-                    'data' => [
-                        'intento_en_progreso_id' => $intentoEnProgreso->id
-                    ]
-                ], 400);
+                // El usuario quiere empezar de nuevo: abandonamos el anterior
+                $intentoEnProgreso->update([
+                    'estado' => 'abandonado',
+                    'fecha_fin' => now()
+                ]);
             }
 
-            if ($intentosCompletados >= $evaluacion->max_intentos) {
-                // Verificar si ha pasado 24 horas desde el último intento
+            // Lógica de reset de intentos por lotes (24h)
+            $batchSize = $evaluacion->max_intentos;
+            if ($intentosCompletados > 0 && ($intentosCompletados % $batchSize == 0)) {
+                // Ha completado un lote (ej: 3, 6, 9 intentos)
                 $ultimoIntento = $intentosUsuario->where('estado', 'completado')
                     ->sortByDesc('created_at')
                     ->first();
 
-                if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                    $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Has alcanzado el límite de intentos. Podrás intentar nuevamente en {$horasRestantes} horas.",
-                        'code' => 'LIMITE_INTENTOS_ALCANZADO'
-                    ], 429);
+                if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                    $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                    if ($horasTranscurridas < 24) {
+                        $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                        $horasRestantes = floor($segundosRestantes / 3600);
+                        $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                        $segsRestantes = floor($segundosRestantes % 60);
+
+                        $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segsRestantes}s";
+
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Has agotado tu bloque de intentos. Podrás intentar nuevamente en {$tiempoFormateado}.",
+                            'code' => 'LIMITE_INTENTOS_ALCANZADO'
+                        ], 429);
+                    }
                 }
             }
 
@@ -231,7 +257,6 @@ class EvaluacionController extends Controller
                     'intento_numero' => $intento->intento_numero
                 ]
             ], 201);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -344,7 +369,6 @@ class EvaluacionController extends Controller
                     'preguntas' => $preguntas
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -466,7 +490,6 @@ class EvaluacionController extends Controller
                     'mensaje' => $esCorrecta ? 'Respuesta correcta' : 'Respuesta guardada'
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -481,9 +504,9 @@ class EvaluacionController extends Controller
      * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
      */
     /**
- * Finalizar evaluación
- * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
- */
+     * Finalizar evaluación
+     * POST /modulos/{moduloId}/evaluacion/{intentoId}/finalizar
+     */
     public function finalizarEvaluacion(Request $request, $moduloId, $intentoId)
     {
         try {
@@ -504,12 +527,12 @@ class EvaluacionController extends Controller
             $intento->calcularResultado();
 
             // ===== ¡IMPORTANTE! LLAMAR AL PROGRESO CONTROLLER =====
-            // Esto actualiza automáticamente la base de datos
+            // Marcar la evaluación como aprobada (si aplica) y luego recalcular
             $progresoController = new ProgresoController();
-            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
-
-            // También llamar explícitamente al método de evaluación aprobada
+            // Primero marcar evaluación aprobada para que el recálculo lo considere
             $progresoController->actualizarEvaluacionAprobada($moduloId);
+            // Luego recalcular el progreso del módulo (esto actualizará porcentaje y certificado)
+            $progresoController->actualizarProgresoModulo($moduloId, $usuario->id);
 
             // Verificar si aprobó
             $aprobado = $intento->aprobado;
@@ -518,6 +541,18 @@ class EvaluacionController extends Controller
             $progresoActualizado = \App\Models\ProgresoModulo::where('usuario_id', $usuario->id)
                 ->where('modulo_id', $moduloId)
                 ->first();
+
+            if ($progresoActualizado) {
+                $updateData = ['fecha_ultimo_progreso' => now()];
+
+                if ($aprobado) {
+                    $updateData['evaluacion_aprobada'] = true;
+                    $updateData['certificado_disponible'] = true;
+                    $updateData['porcentaje_completado'] = 100.00;
+                }
+
+                $progresoActualizado->update($updateData);
+            }
 
             $responseData = [
                 'intento_id' => $intento->id,
@@ -540,7 +575,7 @@ class EvaluacionController extends Controller
             // Si aprobó, agregar información de certificación
             if ($aprobado && $progresoActualizado) {
                 $responseData['certificacion'] = [
-                    'disponible' => $progresoActualizado->certificado_disponible,
+                    'disponible' => (bool) $progresoActualizado->certificado_disponible,
                     'modulo_id' => $moduloId,
                     'mensaje' => $progresoActualizado->certificado_disponible
                         ? '¡Ya puedes generar tu certificado!'
@@ -552,7 +587,6 @@ class EvaluacionController extends Controller
                 'success' => true,
                 'data' => $responseData
             ], 200);
-
         } catch (\Exception $e) {
             \Log::error('Error al finalizar evaluación', [
                 'error' => $e->getMessage(),
@@ -608,15 +642,11 @@ class EvaluacionController extends Controller
                     'respuesta_usuario' => [
                         'opcion_id' => $respuesta->opcion_seleccionada_id,
                         'opcion_texto' => $respuesta->opcionSeleccionada ? $respuesta->opcionSeleccionada->texto : null,
-                        'respuesta_texto' => $respuesta->respuesta_texto,
+                        'respuesta_texto' => $this->formatRespuestaTexto($pregunta, $respuesta->respuesta_texto),
                         'es_correcta' => $respuesta->es_correcta,
                         'puntos_obtenidos' => (float) $respuesta->puntos_obtenidos
                     ],
-                    'respuesta_correcta' => $opcionCorrecta ? [
-                        'id' => $opcionCorrecta->id,
-                        'texto' => $opcionCorrecta->texto,
-                        'pareja_arrastre' => $opcionCorrecta->pareja_arrastre
-                    ] : null,
+                    'respuesta_correcta' => $this->formatRespuestaCorrecta($pregunta),
                     'explicacion' => $this->getExplicacionPregunta($pregunta->tipo, $respuesta->es_correcta)
                 ];
             }
@@ -655,7 +685,6 @@ class EvaluacionController extends Controller
                     'recomendaciones' => $this->getRecomendacionesResultado($intento)
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -712,7 +741,6 @@ class EvaluacionController extends Controller
                     'intentos' => $intentos
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -725,7 +753,7 @@ class EvaluacionController extends Controller
     /**
      * Métodos helper privados
      */
-    private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
+private function puedeRealizarIntento($usuario, $evaluacion, $intentosCompletados)
     {
         // Si ya aprobó
         $yaAprobo = IntentoEvaluacion::where('usuario_id', $usuario->id)
@@ -753,20 +781,31 @@ class EvaluacionController extends Controller
             ];
         }
 
-        // Verificar límite de intentos
-        if ($intentosCompletados >= $evaluacion->max_intentos) {
+        // Verificar límite de intentos por bloque (3 cada 24h)
+        $batchSize = $evaluacion->max_intentos;
+        if ($intentosCompletados > 0 && ($intentosCompletados % $batchSize == 0)) {
             $ultimoIntento = IntentoEvaluacion::where('usuario_id', $usuario->id)
                 ->where('evaluacion_id', $evaluacion->id)
                 ->where('estado', 'completado')
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            if ($ultimoIntento && now()->diffInHours($ultimoIntento->created_at) < 24) {
-                $horasRestantes = 24 - now()->diffInHours($ultimoIntento->created_at);
-                return [
-                    'puede' => false,
-                    'mensaje' => "Podrás intentar nuevamente en {$horasRestantes} horas"
-                ];
+            if ($ultimoIntento && $ultimoIntento->fecha_fin) {
+                $horasTranscurridas = Carbon::parse($ultimoIntento->fecha_fin)->diffInRealSeconds(now()) / 3600;
+
+                if ($horasTranscurridas < 24) {
+                    $segundosRestantes = (24 * 3600) - ($horasTranscurridas * 3600);
+                    $horasRestantes = floor($segundosRestantes / 3600);
+                    $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+                    $segundosRestantesDisplay = floor($segundosRestantes % 60);
+
+                    $tiempoFormateado = "{$horasRestantes}h {$minutosRestantes}min {$segundosRestantesDisplay}s";
+
+                    return [
+                        'puede' => false,
+                        'mensaje' => "Podrás intentar de nuevo en {$tiempoFormateado}"
+                    ];
+                }
             }
         }
 
@@ -774,6 +813,61 @@ class EvaluacionController extends Controller
             'puede' => true,
             'mensaje' => 'Puedes iniciar una nueva evaluación'
         ];
+    }
+
+    /**
+     * Formatea el texto de la respuesta según el tipo de pregunta
+     */
+    private function formatRespuestaTexto($pregunta, $respuestaTexto)
+    {
+        if ($pregunta->tipo === 'arrastrar_soltar' && $respuestaTexto) {
+            try {
+                $parejasAsignadas = json_decode($respuestaTexto, true);
+                if (is_array($parejasAsignadas)) {
+                    $formatted = [];
+                    // Cargar opciones para buscar el texto
+                    $opciones = $pregunta->opciones;
+
+                    foreach ($parejasAsignadas as $p) {
+                        $idOpcion = $p['id_opcion'] ?? null;
+                        $pareja = $p['pareja'] ?? '?';
+                        
+                        $opcion = $opciones->firstWhere('id', $idOpcion);
+                        $texto = $opcion ? $opcion->texto : '?';
+                        
+                        $formatted[] = "{$pareja} -> {$texto}";
+                    }
+                    return implode(', ', $formatted);
+                }
+            } catch (\Exception $e) {
+                return $respuestaTexto;
+            }
+        }
+        return $respuestaTexto;
+    }
+
+    /**
+     * Formatea la respuesta correcta según el tipo de pregunta
+     */
+    private function formatRespuestaCorrecta($pregunta)
+    {
+        if ($pregunta->tipo === 'arrastrar_soltar') {
+            $opciones = $pregunta->opciones;
+            $formatted = [];
+            foreach ($opciones as $opcion) {
+                $formatted[] = "{$opcion->pareja_arrastre} -> {$opcion->texto}";
+            }
+            return [
+                'texto' => implode(', ', $formatted)
+            ];
+        }
+
+        $opcionCorrecta = $pregunta->getOpcionCorrecta();
+        return $opcionCorrecta ? [
+            'id' => $opcionCorrecta->id,
+            'texto' => $opcionCorrecta->texto,
+            'pareja_arrastre' => $opcionCorrecta->pareja_arrastre
+        ] : null;
     }
 
     private function getInstruccionesPorTipo($tipo)
