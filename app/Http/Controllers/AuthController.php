@@ -293,6 +293,14 @@ class AuthController extends Controller
                     'proveedor_auth' => 'google'
                 ]);
             }
+
+            // ASEGURAR QUE EL EMAIL ESTÉ MARCADO COMO VERIFICADO
+            // Google ya verificó este email, así que podemos marcarlo como verificado si aún no lo está.
+            if (!$usuario->email_verified_at) {
+                $usuario->update([
+                    'email_verified_at' => now()
+                ]);
+            }
         }
 
         // Crear token
