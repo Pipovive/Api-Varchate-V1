@@ -23,7 +23,7 @@ class AuthController extends Controller
         \Log::info('📝 [REGISTER] Inicio', ['email' => $request->email]);
 
         $request->validate([
-            'nombre' => 'required|string|max:255',
+            'nombre' => 'required|string|max:40',
             'email' => 'required|email|unique:usuarios',
             'password' => [
                 'required',
