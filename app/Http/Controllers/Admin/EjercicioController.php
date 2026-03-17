@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Leccion;
 use App\Models\Ejercicio;
-use App\Models\OpcionesEjercicio;
+use App\Models\OpcionEjercicio;
 use Illuminate\Http\Request;
 
 class EjercicioController extends Controller
@@ -141,7 +141,7 @@ class EjercicioController extends Controller
         elseif ($request->has('opciones')) {
             foreach ($request->opciones as $index => $opcionData) {
                 if (isset($opcionData['id'])) {
-                    $opcion = OpcionesEjercicio::find($opcionData['id']);
+                    $opcion = OpcionEjercicio::find($opcionData['id']);
                     if ($opcion && $opcion->ejercicio_id == $ejercicio->id) {
                         $opcion->update([
                             'texto' => $opcionData['texto'],
@@ -217,7 +217,7 @@ class EjercicioController extends Controller
         foreach ($request->opciones as $index => $opcionData) {
             if (isset($opcionData['id'])) {
                 // Actualizar existente
-                $opcion = OpcionesEjercicio::find($opcionData['id']);
+                $opcion = OpcionEjercicio::find($opcionData['id']);
                 $opcion->update([
                     'texto' => $opcionData['texto'],
                     'es_correcta' => $opcionData['es_correcta'] ?? false,
