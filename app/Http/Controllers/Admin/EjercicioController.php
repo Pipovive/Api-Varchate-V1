@@ -40,9 +40,10 @@ class EjercicioController extends Controller
             'tipo' => 'required|in:seleccion_multiple,verdadero_falso,arrastrar_soltar',
             'orden' => 'sometimes|integer',
             'estado' => 'sometimes|in:activo,inactivo',
+            'respuesta_correcta' => 'required_if:tipo,verdadero_falso|in:verdadero,falso',
             'opciones' => 'required_if:tipo,seleccion_multiple,arrastrar_soltar|array',
             'opciones.*.texto' => 'required_with:opciones|string',
-            'opciones.*.es_correcta' => 'required_if:tipo,seleccion_multiple|boolean',
+            'opciones.*.es_correcta' => 'sometimes|boolean',
             'opciones.*.pareja_arrastre' => 'required_if:tipo,arrastrar_soltar|string|nullable'
         ]);
 
@@ -120,15 +121,50 @@ class EjercicioController extends Controller
             'pregunta' => 'sometimes|string',
             'tipo' => 'sometimes|in:seleccion_multiple,verdadero_falso,arrastrar_soltar',
             'orden' => 'sometimes|integer',
-            'estado' => 'sometimes|in:activo,inactivo'
+            'estado' => 'sometimes|in:activo,inactivo',
+            'respuesta_correcta' => 'sometimes|in:verdadero,falso',
+            'opciones' => 'sometimes|array'
         ]);
 
         $ejercicio->update($validated);
 
+        // Si es verdadero/falso y se envió respuesta_correcta, actualizar opciones
+        if ($ejercicio->tipo === 'verdadero_falso' && $request->has('respuesta_correcta')) {
+            $ejercicio->opciones()->where('texto', 'Verdadero')->update([
+                'es_correcta' => $request->respuesta_correcta === 'verdadero'
+            ]);
+            $ejercicio->opciones()->where('texto', 'Falso')->update([
+                'es_correcta' => $request->respuesta_correcta === 'falso'
+            ]);
+        } 
+        // Si se enviaron opciones manualmente (ej: seleccion_multiple)
+        elseif ($request->has('opciones')) {
+            foreach ($request->opciones as $index => $opcionData) {
+                if (isset($opcionData['id'])) {
+                    $opcion = OpcionesEjercicio::find($opcionData['id']);
+                    if ($opcion && $opcion->ejercicio_id == $ejercicio->id) {
+                        $opcion->update([
+                            'texto' => $opcionData['texto'],
+                            'es_correcta' => $opcionData['es_correcta'] ?? false,
+                            'pareja_arrastre' => $opcionData['pareja_arrastre'] ?? null,
+                            'orden' => $opcionData['orden'] ?? $index + 1
+                        ]);
+                    }
+                } else {
+                    $ejercicio->opciones()->create([
+                        'texto' => $opcionData['texto'],
+                        'es_correcta' => $opcionData['es_correcta'] ?? false,
+                        'pareja_arrastre' => $opcionData['pareja_arrastre'] ?? null,
+                        'orden' => $opcionData['orden'] ?? $index + 1
+                    ]);
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Ejercicio actualizado exitosamente',
-            'data' => $ejercicio
+            'data' => $ejercicio->load('opciones')
         ]);
     }
 
