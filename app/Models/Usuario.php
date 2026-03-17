@@ -34,7 +34,8 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'terms_accepted_at',
         'user_agent',
         'rol',        // 👈 AGREGADO
-        'estado'      // 👈 AGREGADO
+        'estado',      // 👈 AGREGADO
+        'email_verified_at', // 👈 AGREGADO PARA GOOGLE
     ];
 
 

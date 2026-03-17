@@ -282,6 +282,8 @@ class AuthController extends Controller
                 'email_verified_at' => now(),
                 'proveedor_auth' => 'google',
                 'auth_provider_id' => $googleUser->getId(),
+                'terms_accepted' => true,
+                'terms_accepted_at' => now(),
                 'avatar_id' => 1
             ]);
         } else {
@@ -297,9 +299,17 @@ class AuthController extends Controller
             // ASEGURAR QUE EL EMAIL ESTÉ MARCADO COMO VERIFICADO
             // Google ya verificó este email, así que podemos marcarlo como verificado si aún no lo está.
             if (!$usuario->email_verified_at) {
-                $usuario->update([
-                    'email_verified_at' => now()
-                ]);
+                $usuario->email_verified_at = now();
+            }
+
+            // También marcar términos aceptados ya que el inicio con Google lo implica o se assume en este flujo
+            if (!$usuario->terms_accepted) {
+                $usuario->terms_accepted = true;
+                $usuario->terms_accepted_at = now();
+            }
+
+            if ($usuario->isDirty()) {
+                $usuario->save();
             }
         }
 
