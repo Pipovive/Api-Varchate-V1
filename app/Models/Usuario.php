@@ -33,9 +33,9 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'terms_accepted',
         'terms_accepted_at',
         'user_agent',
-        'rol',        // 👈 AGREGADO
-        'estado',      // 👈 AGREGADO
-        'email_verified_at', // 👈 AGREGADO PARA GOOGLE
+        'rol',        //  AGREGADO
+        'estado',      //  AGREGADO
+        'email_verified_at', //  AGREGADO PARA GOOGLE
     ];
 
 
@@ -50,7 +50,7 @@ class Usuario extends Authenticatable implements MustVerifyEmail
         'password' => 'hashed',
     ];
 
-    // 👇 CAMBIADO DE protected A public
+    //  CAMBIADO DE protected A public
 
 
     public function avatar()
