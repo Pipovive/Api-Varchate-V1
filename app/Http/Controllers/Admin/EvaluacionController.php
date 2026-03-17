@@ -138,15 +138,47 @@ class EvaluacionController extends Controller
             'pregunta' => 'sometimes|string',
             'tipo' => 'sometimes|in:seleccion_multiple,verdadero_falso,arrastrar_soltar',
             'puntos' => 'sometimes|numeric|min:0.5|max:100',
-            'orden' => 'sometimes|integer'
+            'orden' => 'sometimes|integer',
+            'opciones' => 'sometimes|array'
         ]);
 
         $pregunta->update($validated);
 
+        // Sincronizar opciones si se enviaron
+        if ($request->has('opciones')) {
+            $opcionesData = $request->opciones;
+            $opcionesIds = collect($opcionesData)->pluck('id')->filter();
+
+            // Eliminar opciones que ya no existen
+            $pregunta->opciones()->whereNotIn('id', $opcionesIds)->delete();
+
+            // Actualizar o crear opciones
+            foreach ($opcionesData as $index => $opcionData) {
+                if (isset($opcionData['id'])) {
+                    $opcion = OpcionesEvaluacion::find($opcionData['id']);
+                    if ($opcion && $opcion->pregunta_id == $pregunta->id) {
+                        $opcion->update([
+                            'texto' => $opcionData['texto'],
+                            'es_correcta' => $opcionData['es_correcta'] ?? false,
+                            'pareja_arrastre' => $opcionData['pareja_arrastre'] ?? null,
+                            'orden' => $opcionData['orden'] ?? $index + 1
+                        ]);
+                    }
+                } else {
+                    $pregunta->opciones()->create([
+                        'texto' => $opcionData['texto'],
+                        'es_correcta' => $opcionData['es_correcta'] ?? false,
+                        'pareja_arrastre' => $opcionData['pareja_arrastre'] ?? null,
+                        'orden' => $opcionData['orden'] ?? $index + 1
+                    ]);
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Pregunta actualizada exitosamente',
-            'data' => $pregunta
+            'data' => $pregunta->load('opciones')
         ]);
     }
 

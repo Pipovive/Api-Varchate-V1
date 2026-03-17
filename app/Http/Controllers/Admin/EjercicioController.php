@@ -137,9 +137,16 @@ class EjercicioController extends Controller
                 'es_correcta' => $request->respuesta_correcta === 'falso'
             ]);
         } 
-        // Si se enviaron opciones manualmente (ej: seleccion_multiple)
+        // Si se enviaron opciones manualmente (ej: seleccion_multiple, arrastrar_soltar)
         elseif ($request->has('opciones')) {
-            foreach ($request->opciones as $index => $opcionData) {
+            $opcionesData = $request->opciones;
+            $opcionesIds = collect($opcionesData)->pluck('id')->filter();
+
+            // Eliminar opciones que ya no existen
+            $ejercicio->opciones()->whereNotIn('id', $opcionesIds)->delete();
+
+            // Actualizar o crear opciones
+            foreach ($opcionesData as $index => $opcionData) {
                 if (isset($opcionData['id'])) {
                     $opcion = OpcionEjercicio::find($opcionData['id']);
                     if ($opcion && $opcion->ejercicio_id == $ejercicio->id) {
